@@ -243,6 +243,7 @@ function setupUnassignCourses() {
 function setupAssignMember(dialogId) {
   const dialog = document.getElementById(dialogId);
   if (!dialog) return;
+  let assignmentPending = false;
 
   dialog.addEventListener("invalid", (event) => markInvalid(event.target), true);
   dialog.addEventListener("input", clearInvalid);
@@ -253,15 +254,18 @@ function setupAssignMember(dialogId) {
     if (!form.matches("[data-individual-assignment-form]")) return;
     event.preventDefault();
 
-    const submitButton = form.querySelector("button[type='submit']");
-    if (submitButton.disabled) return;
+    const submitButton = event.submitter;
+    if (!submitButton?.matches("button[data-individual-user-id]") || assignmentPending) return;
+    form.elements.namedItem("user_id").value = submitButton.dataset.individualUserId;
+    const search = form.elements.namedItem("search");
+    search.classList.remove("invalid-input");
+    search.removeAttribute("aria-invalid");
+    const resultButtons = form.querySelectorAll("button[data-individual-user-id]");
     const errors = form.querySelector("[data-assignment-form-errors]");
-    if (!form.elements.namedItem("user_id").value) {
-      markInvalid(form.elements.namedItem("search"));
-      return;
-    }
 
-    submitButton.disabled = true;
+    assignmentPending = true;
+    resultButtons.forEach((button) => { button.disabled = true; });
+    search.readOnly = true;
     errors.hidden = true;
     clearTimeout(searchTimeout);
     ++requestId;
@@ -288,7 +292,10 @@ function setupAssignMember(dialogId) {
       window.location.reload();
     } catch {
       displayUserMessage("error", "Could not assign this person to the playlist. Please try again.")
-      submitButton.disabled = false;
+      resultButtons.forEach((button) => { button.disabled = false; });
+      search.readOnly = false;
+    } finally {
+      assignmentPending = false;
     }
   });
 
@@ -309,7 +316,7 @@ function setupAssignMember(dialogId) {
     const currentRequest = ++requestId;
     clearTimeout(searchTimeout);
     form.elements.namedItem("user_id").value = "";
-    form.querySelector("[data-selected-person]").textContent = "No person selected.";
+
     results.replaceChildren();
     errors.hidden = true;
     searchTimeout = setTimeout(async () => {
@@ -332,20 +339,6 @@ function setupAssignMember(dialogId) {
     }, 300);
   });
 
-  dialog.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-individual-user-id]");
-    if (!button) return;
-    const form = button.form;
-    form.elements.namedItem("user_id").value = button.dataset.individualUserId;
-    form.querySelector("[data-selected-person]").textContent = `Selected: ${button.textContent.trim()}`;
-    form.querySelectorAll("[data-individual-user-id]").forEach((result) => {
-      result.setAttribute("aria-pressed", String(result === button));
-    });
-    const search = form.elements.namedItem("search");
-    search.classList.remove("invalid-input");
-    search.removeAttribute("aria-invalid");
-    form.querySelector("[data-assignment-form-errors]").hidden = true;
-  });
 }
 
 

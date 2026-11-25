@@ -20,31 +20,27 @@
     <div class="column-flex">
         <div class="playlist-field-wrapper">
             <label for="assign-{{ assignment_kind }}-search">{{ assign_individual_form.search.label }}</label>
-            <input type="search"
-                   id="assign-{{ assignment_kind }}-search"
-                   name="{{ assign_individual_form.search.html_name }}"
-                   value="{{ assign_individual_form.search.value|default_if_none:'' }}"
-                   autocomplete="off"
-                   {% if assign_individual_form.search.errors or assign_individual_form.user_id.errors %}aria-invalid="true"{% endif %}
-                   aria-describedby="assign-{{ assignment_kind }}-search-errors assign-{{ assignment_kind }}-user-errors">
+            <div>
+                <input type="search"
+                       id="assign-{{ assignment_kind }}-search"
+                       name="{{ assign_individual_form.search.html_name }}"
+                       value="{{ assign_individual_form.search.value|default_if_none:'' }}"
+                       autocomplete="off"
+                       {% if assign_individual_form.search.errors or assign_individual_form.user_id.errors %}aria-invalid="true"{% endif %}
+                       aria-describedby="assign-{{ assignment_kind }}-search-errors assign-{{ assignment_kind }}-user-errors">
+                <div data-individual-search-results class="column-flex" aria-live="polite"></div>
+            </div>
             <div id="assign-{{ assignment_kind }}-search-errors">{{ assign_individual_form.search.errors }}</div>
         </div>
-        <div data-individual-search-results class="column-flex" aria-live="polite"></div>
         <input type="hidden"
                id="assign-{{ assignment_kind }}-user_id"
                name="{{ assign_individual_form.user_id.html_name }}"
                value="{{ assign_individual_form.user_id.value|default_if_none:'' }}">
         <div id="assign-{{ assignment_kind }}-user-errors">{{ assign_individual_form.user_id.errors }}</div>
-        <p data-selected-person role="status">
-            {% if assign_individual_form.selected_user %}
-                Selected: {{ assign_individual_form.selected_user.get_full_name|default:assign_individual_form.selected_user.username }} ({{ assign_individual_form.selected_user.netid }})
-            {% else %}
-                No person selected.
-            {% endif %}
-        </p>
+
     </div>
     <div class="row-flex flex-apart-aligned">
-        <button type="submit" class="white-button-with-border">Assign</button>
+
         <button type="button"
                 class="cancel-button"
                 command="close"
