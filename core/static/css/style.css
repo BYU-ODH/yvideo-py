@@ -1315,7 +1315,7 @@ button:hover {
     align-items: center;
     padding: 0;
     margin: 0;
-    border: 2px solid var(--selectable-grey);
+    border: 2px solid transparent;
     cursor: pointer;
     background-color: inherit;
     padding: 0.2rem;
@@ -2012,6 +2012,104 @@ button:hover {
     margin: 0;
 }
 
+#playlist-video-list .copy-video-link-button,
+#playlist-video-list .setting-toggle {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    align-self: center;
+    justify-content: center;
+
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+
+    font: inherit;
+    color: inherit;
+
+    background: transparent;
+}
+
+#playlist-video-list .copy-video-link-button {
+    width: 44px;
+    border: 2px solid transparent;
+    border-radius: 8px;
+}
+
+#playlist-video-list .copy-video-link-button:hover {
+    border-color: black;
+}
+
+#playlist-video-list .setting-toggle {
+    gap: 1rem;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+.setting-toggle-text {
+    width: 6rem;
+}
+
+#playlist-video-list .setting-toggle-track {
+    position: relative;
+    display: block;
+    flex-shrink: 0;
+
+    width: 4rem;
+    height: 2rem;
+    border-radius: 2rem;
+
+    background-color: var(--dark-grey);
+    box-shadow: 0 3px 6px rgb(0 0 0 / 16%), 0 3px 6px rgb(0 0 0 / 23%);
+}
+
+#playlist-video-list .setting-toggle:hover .setting-toggle-track {
+    box-shadow: 0 3px 6px rgb(0 0 0 / 16%), 0 3px 6px rgb(0 0 0 / 23%), 0 3px 5px 0 #00000050;
+}
+
+#playlist-video-list .setting-toggle:focus-visible .setting-toggle-track {
+    box-shadow: none;
+}
+
+#playlist-video-list .setting-toggle-peg {
+    transform: translateX(0);
+    position: absolute;
+    top: 0.125rem;
+    left: 0.125rem;
+
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+
+    background-color: white;
+
+    transition: transform 200ms ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #playlist-video-list .setting-toggle-peg {
+        transition: none;
+    }
+}
+
+#playlist-video-list .setting-toggle[aria-checked="true"] .setting-toggle-track {
+    background-color: var(--primary-blue);
+}
+
+#playlist-video-list .setting-toggle[aria-checked="true"] .setting-toggle-peg {
+    transform: translateX(2rem);
+}
+
+#playlist-video-list .setting-toggle[aria-busy="true"] {
+    cursor: progress;
+}
+
+#playlist-video-list .copy-video-link-button:focus-visible,
+#playlist-video-list .setting-toggle:focus-visible {
+    outline: 2px solid var(--medium-blue);
+    outline-offset: 3px;
+}
+
 .resource-detail-heading,
 .resource-detail-title,
 .resource-detail-body,
@@ -2280,6 +2378,27 @@ button.disabled, .playlist-setting-checkbox-button[aria-disabled='True'] {
 
 button.disabled:hover, .playlist-setting-checkbox-button[aria-disabled='True']:hover {
     background-color: #e0e0e040;
+}
+
+.playlist-thumbnail-link {
+    display: block;
+    align-self: center;
+    border-radius: 8px;
+    text-decoration: none;
+    box-shadow: 0 3px 6px rgb(0 0 0 / 16%), 0 3px 6px rgb(0 0 0 / 23%);
+}
+
+.playlist-thumbnail-link:hover {
+    box-shadow: 0 3px 6px rgb(0 0 0 / 16%), 0 3px 6px rgb(0 0 0 / 23%), 0 3px 5px 0 #00000050;
+}
+
+.playlist-thumbnail-link:focus-visible {
+    outline: var(--medium-blue) dashed;
+    box-shadow: none;
+}
+
+.playlist-thumbnail-link .thumbnail {
+    height: 6rem;
 }
 
 .thumbnail {

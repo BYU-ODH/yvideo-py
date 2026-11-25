@@ -14,6 +14,54 @@ function setupVideoSearch() {
   });
 }
 
+function setupVideoEntryControls() {
+  const videoList = document.getElementById("playlist-video-list");
+  if (!videoList) return;
+
+  videoList.addEventListener("click", async (event) => {
+    const button = event.target.closest(".copy-video-link-button");
+    if (button) {
+      const videoUrl = new URL(button.dataset.videoUrl, window.location.origin).href;
+      try {
+        await navigator.clipboard.writeText(videoUrl);
+        displayUserMessage("success", "Video link copied to clipboard.");
+      } catch {
+        fail_msg = "Could not copy the video link to your clipboard.";
+        if (videoUrl) {
+          fail_msg += ` You can copy the link here: ${videoUrl}`;
+        }
+        displayUserMessage("error", fail_msg);
+      }
+      return;
+    }
+
+    const toggle = event.target.closest(".setting-toggle[data-publish-url]");
+    if (!toggle || toggle.disabled) return;
+    const published = toggle.getAttribute("aria-checked") !== "true";
+    toggle.disabled = true;
+    toggle.setAttribute("aria-busy", "true");
+    try {
+      const response = await fetch(toggle.dataset.publishUrl, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCSRFToken(),
+        },
+        body: JSON.stringify({ published }),
+      });
+
+      if (!response.ok) throw new Error("Publishing update failed")
+      toggle.setAttribute("aria-checked", String(published));
+      toggle.querySelector(".setting-toggle-text").textContent = published ? "Published" : "Unpublished";
+    } catch {
+      displayUserMessage("error", "Could not update the video's published status. Please try again.");
+    } finally {
+      toggle.disabled = false;
+      toggle.removeAttribute("aria-busy");
+    }
+  });
+}
+
 function setupDeletePlaylist() {
   const deleteButton = document.getElementById("playlist-confirm-delete");
   if (!deleteButton) {
@@ -387,6 +435,7 @@ function setupRemoveMember() {
 
 function initialize() {
   setupVideoSearch();
+  setupVideoEntryControls();
   setupDeletePlaylist();
   setupPlaylistSettings();
   setupAssignCourses();

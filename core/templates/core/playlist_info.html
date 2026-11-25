@@ -67,11 +67,11 @@
                                     class="search-icon"
                                     alt="search">
                         </div>
-                        <div id="playlist-video-list">
+                        <div id="playlist-video-list" class="column-flex">
                             {% for content, content_thumbnail in contents %}
                                 <div class="playlist-item-tile">
                                     <div class="row-flex">
-                                        <a {% if can_edit %} href="{% url 'display_content_info' content.id %}" aria-label="View {{ content.display_name }} settings"{% else %} href="{% url 'player' content.id %}" aria-label="Play {{ content.display_name }}"{% endif %}>
+                                        <a class="playlist-thumbnail-link" {% if can_edit %} href="{% url 'display_content_info' content.id %}" aria-label="View {{ content.display_name }} settings"{% else %} href="{% url 'player' content.id %}" aria-label="Play {{ content.display_name }}"{% endif %}>
                                             {% include "core/partials/thumbnail.html" with thumbnail=content_thumbnail %}
                                         </a>
                                         <div class="column-flex">
@@ -80,17 +80,24 @@
                                         </div>
                                     </div>
                                     <div class="row-flex">
-                                        <button class="copy-video-link-button">
-
+                                        <button type="button"
+                                                class="copy-video-link-button"
+                                                data-video-url="{% url 'player' content.id %}"
+                                                aria-label="Copy video link for {{ content.display_name }}"
+                                                title="Copy video link">
+                                            <img src="{% static 'img/link.svg' %}" alt="L">
                                         </button>
-                                        <div class="setting-toggle">
-                                            <div class="setting-toggle-track">
-                                                <div class="setting-toggle-peg">
-
-                                                </div>
-                                            </div>
-                                            <p class="setting-toggle-text">{% if content.published %}Published{% else %}Unpublished{% endif %}</p>
-                                        </div>
+                                        <button type="button"
+                                                class="setting-toggle"
+                                                role="switch"
+                                                aria-label="Publish {{ content.display_name }}"
+                                                aria-checked="{{ content.published|yesno:'true,false' }}"
+                                                {% if can_edit %}data-publish-url="{% url 'update_content' content.id %}"{% else %}disabled{% endif %}>
+                                            <span class="setting-toggle-track" aria-hidden="true">
+                                                <span class="setting-toggle-peg"></span>
+                                            </span>
+                                            <span class="setting-toggle-text">{% if content.published %}Published{% else %}Unpublished{% endif %}</span>
+                                        </button>
                                     </div>
                                 </div>
                             {% empty %}

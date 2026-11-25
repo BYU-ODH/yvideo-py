@@ -1333,9 +1333,24 @@ def render_content_settings_form(request, content):
         return HttpResponseServerError()
 
 
-@require_POST
+@require_http_methods(["POST", "PATCH"])
 @content_write_required
 def update_content(request, content):
+    if request.method == "PATCH":
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return HttpResponse(status=400)
+        if (
+            not isinstance(data, dict)
+            or set(data) != {"published"}
+            or not isinstance(data["published"], bool)
+        ):
+            return HttpResponse(status=400)
+        content.published = data["published"]
+        content.save(update_fields=["published", "updated_at"])
+        return HttpResponse(status=204)
+
     try:
         data = json.loads(request.body)
         content.title = data["title"]
