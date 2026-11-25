@@ -164,7 +164,7 @@ def make_film(editor, playlist, title, *, with_annotations=True, with_subtitles=
         # Edit history: an inactive version linked by prev/next.
         skip.edit(end_time=4)
         MuteAnnotationFactory(track=track, start_time=5, end_time=7)
-        BlankAnnotationFactory(track=second, start_time=8, end_time=9, type="k")
+        BlankAnnotationFactory(track=second, start_time=8, end_time=9)
         blur = BlurAnnotationFactory(track=second, start_time=10, end_time=14)
         BlurAnchorPointFactory(
             blur_annotation=blur, time=10, x=10, y=10, width=20, height=20

@@ -470,7 +470,6 @@ class AnnotationSetCreateForContentTests(TestCase):
             start_time=6.0,
             end_time=8.0,
             description="blank interlude",
-            type="k",
         )
         self.skip_annotation = SkipAnnotation.objects.create(
             track=full_coverage_track,
@@ -526,7 +525,6 @@ class AnnotationSetCreateForContentTests(TestCase):
             start_time=27.0,
             end_time=30.0,
             description="blank second section",
-            type="#",
         )
         SkipAnnotation.objects.create(
             track=self.tracks[2],
