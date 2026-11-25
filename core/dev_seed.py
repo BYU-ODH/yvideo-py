@@ -371,7 +371,6 @@ def create_demo_data():
         start_time=12.0,
         end_time=14.5,
         description="Blank the display",
-        type="#",
     )
     # Two blurs covering both authoring shapes. Every anchor point is deliberately asymmetric
     # (x != y, width != height) so an axis or dimension mix-up cannot cancel itself out, and
@@ -466,7 +465,6 @@ def create_demo_data():
         start_time=2.0,
         end_time=3.0,
         description="Hide the highlighted square during discussion.",
-        type="k",
     )
     CommentAnnotationFactory(
         track=grid_track,

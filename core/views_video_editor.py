@@ -891,9 +891,6 @@ def update_annotation(request, content, annotation_type, annotation_id):
         if (annotation_type == "pause") and "message" in json_data:
             fields_to_update["message"] = json_data["message"]
 
-        if annotation_type == "blank" and "blank_type" in json_data:
-            fields_to_update["type"] = json_data["blank_type"]
-
         if annotation_type == "comment":
             if "text" in json_data:
                 fields_to_update["text"] = json_data["text"]

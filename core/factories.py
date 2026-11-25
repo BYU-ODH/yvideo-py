@@ -229,7 +229,6 @@ class BlankAnnotationFactory(factory.django.DjangoModelFactory):
     start_time = 15.0
     end_time = 20.0
     description = "Hide distracting visual content"
-    type = "#"
 
 
 class BlurAnnotationFactory(factory.django.DjangoModelFactory):

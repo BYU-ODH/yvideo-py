@@ -1589,22 +1589,6 @@ class MuteAnnotation(BaseAnnotation):
 class BlankAnnotation(BaseAnnotation):
     """Blank annotation - standard time range."""
 
-    type = models.CharField(
-        max_length=10,
-        choices=[
-            ("k", "Black"),  # <video> CSS filter: brightness(0)
-            ("#", "Blur"),  # <video> CSS filter: blur(30px)
-            ("w", "White"),  # <video> CSS filter: brightness(10)
-        ],
-        default="k",
-    )
-
-    @classmethod
-    def from_import(cls, imported_data, track):
-        return super().from_import(
-            imported_data, track, type=imported_data.get("type", "k")
-        )
-
 
 class PauseAnnotation(BaseAnnotation):
     """Pause annotation - point in time, not a range."""

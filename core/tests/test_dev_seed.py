@@ -10,7 +10,6 @@ from django.urls import reverse
 from core.dev_features import DEMO_ADMIN_USERNAME
 from core.dev_seed import seed_demo_data
 from core.models import AnnotationSet
-from core.models import BlankAnnotation
 from core.models import BlurAnnotation
 from core.models import CommentAnnotation
 from core.models import Content
@@ -117,14 +116,6 @@ class DemoSeedDataTests(TestCase):
         )
         self.assertEqual(
             CommentAnnotation.objects.filter(active=True, track=grid_track).count(), 1
-        )
-        self.assertEqual(
-            set(
-                BlankAnnotation.objects.filter(active=True).values_list(
-                    "type", flat=True
-                )
-            ),
-            {"#", "k"},
         )
         # Edit rights are derived, not stored: the seeded TA holds PlaylistRole.COLLABORATOR
         # on a playlist Professor Ada owns, which is what makes this set editable for them.

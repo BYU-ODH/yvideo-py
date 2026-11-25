@@ -105,10 +105,9 @@ def assert_no_violations(page: Page, where: str, include=None, exclude=None) -> 
 def content_with_every_annotation_type(seeded_demo_data):
     """One content carrying every annotation type, spread over three tracks.
 
-    The seed covers the five types the demo needs to look real; this covers the two it does
-    not (skip and pause) and both remaining blank types, because the editor's detail form,
-    its panel groups and its timeline items are all per-type templates. Three tracks because
-    a single track hides every "is this the first/last track" branch in the track menu.
+    The editor's detail form, its panel groups and its timeline items are all per-type
+    templates, so each type needs an instance to be audited. Three tracks because a single
+    track hides every "is this the first/last track" branch in the track menu.
     """
     from core.factories import AnnotationSetFactory
     from core.factories import BlankAnnotationFactory
@@ -148,19 +147,9 @@ def content_with_every_annotation_type(seeded_demo_data):
         start_time=9.0,
         end_time=10.0,
     )
-    # All three blank types, because each is a different <option selected> in the form.
-    for name, blank_type, start in (
-        ("A11y Blank Black", "k", 1.0),
-        ("A11y Blank Blur", "#", 3.0),
-        ("A11y Blank White", "w", 5.0),
-    ):
-        BlankAnnotationFactory(
-            track=second,
-            name=name,
-            start_time=start,
-            end_time=start + 1.0,
-            type=blank_type,
-        )
+    BlankAnnotationFactory(
+        track=second, name="A11y Blank", start_time=3.0, end_time=4.0
+    )
     PauseAnnotation.objects.create(
         track=second,
         name="A11y Pause",
@@ -703,7 +692,7 @@ def test_the_annotation_form_has_no_a11y_violations(
 ):
     """annotation_form.html is seven forms in one template, and each is only reachable by
     selecting an annotation of that type: pause has no end time, comment has the text and
-    geometry fields, blank has the type picker, blur carries the whole points table."""
+    geometry fields, blur carries the whole points table."""
     page = logged_in_page
     page.goto(
         f"{live_server.url}/video-editor/{content_with_every_annotation_type.pk}/"

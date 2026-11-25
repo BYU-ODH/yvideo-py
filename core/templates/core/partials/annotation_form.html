@@ -167,17 +167,6 @@
                     </tbody>
                 </table>
             </div>
-        {% elif item_type == 'blank' %}
-            <div class="form-group">
-                <label for="blank_type">Blank Type:</label>
-                <select id="blank_type"
-                        name="blank_type"
-                        {% if not can_edit %}disabled{% endif %}>
-                    <option value="k" {% if instance.type == 'k' %}selected{% endif %}>Black</option>
-                    <option value="#" {% if instance.type == '#' %}selected{% endif %}>Blur</option>
-                    <option value="w" {% if instance.type == 'w' %}selected{% endif %}>White</option>
-                </select>
-            </div>
         {% endif %}
         {% if item_type == 'blur' %}
             {% include "core/partials/blur_anchor_points.html" with item_blur_anchor_points=item_blur_anchor_points %}
