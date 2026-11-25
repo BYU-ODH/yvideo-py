@@ -29,6 +29,12 @@
 
                     {% if can_edit %}
                         <div class="row-flex">
+                            <button id="add-new-video-button"
+                                class="blue-button"
+                                commandfor="add-video-dialog"
+                                command="show-modal">
+                                    + Add New Video
+                            </button>
                             <button id="playlist-settings-thumbnail"
                                 class="white-button-with-border"
                                 data-thumbnail-editor-url="/playlists/{{ playlist.id }}/thumbnail/">
@@ -41,23 +47,16 @@
                                     type="button">Delete Playlist</button>
                         </div>
                         {% include "core/partials/modals/playlist_delete.html" with dialog_id="playlist-delete-modal" %}
+                        {% include "core/partials/modals/add_video.html" with dialog_id="add-video-dialog" %}
+                        {% include "core/partials/modals/select_resource.html" with dialog_id="select-resource-dialog" previous_dialog_id="add-video-dialog" %}
+                        {% include "core/partials/modals/create_from_resource.html" with dialog_id="create-from-resource-modal" previous_dialog_id="select-resource-dialog" %}
                     {% endif %}
                 </div>
             {% endif %}
-            <h2>Playlist Videos</h2>
-            <div id="playlist-lower-content" class="row-flex flex-apart-aligned">
-                <div id="playlist-videos-content">
-                    <div class="row-flex">
-                        {% if can_edit %}
-                            {% include "core/partials/modals/add_video.html" with dialog_id="add-video-dialog" %}
-                            {% include "core/partials/modals/select_resource.html" with dialog_id="select-resource-dialog" previous_dialog_id="add-video-dialog" %}
-                            {% include "core/partials/modals/create_from_resource.html" with dialog_id="create-from-resource-modal" previous_dialog_id="select-resource-dialog" %}
-
-                            <button id="add-new-video-button"
-                                class="blue-button"
-                                commandfor="add-video-dialog"
-                                command="show-modal">+ Add New Video</button>
-                        {% endif %}
+            <div>
+                <h2>Playlist Videos</h2>
+                <div id="playlist-lower-content" class="row-flex">
+                    <div id="playlist-videos-content" class="column-flex">
                         <div class="search-wrapper">
                             <input type="text"
                                     id="video-search"
@@ -68,90 +67,101 @@
                                     class="search-icon"
                                     alt="search">
                         </div>
-                    </div>
-                    <div id="playlist-video-list">
-                        {% for content, content_thumbnail in contents %}
-                            {% if can_edit %}
-                                <a href="{% url 'display_content_info' content.id %}"
-                                   class="playlist-item-tile"
-                                   aria-label="View {{ content.display_name }} settings">
-                            {% else %}
-                                <a href="{% url 'player' content.id %}"
-                                   class="playlist-item-tile"
-                                   aria-label="Play {{ content.display_name }}">
-                            {% endif %}
-                                {% include "core/partials/thumbnail.html" with thumbnail=content_thumbnail %}
+                        <div id="playlist-video-list">
+                            {% for content, content_thumbnail in contents %}
+                                <div class="playlist-item-tile">
+                                    <div class="row-flex">
+                                        <a {% if can_edit %} href="{% url 'display_content_info' content.id %}" aria-label="View {{ content.display_name }} settings"{% else %} href="{% url 'player' content.id %}" aria-label="Play {{ content.display_name }}"{% endif %}>
+                                            {% include "core/partials/thumbnail.html" with thumbnail=content_thumbnail %}
+                                        </a>
+                                        <div class="column-flex">
+                                            <h3 class="video-item-title">{{ content.display_name }}</h3>
+                                            <p class="video-item-description">{{ content.description }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="row-flex">
+                                        <button class="copy-video-link-button">
 
-                                <h3 class="video-item-title">{{ content.display_name }}</h3>
-                            </a>
-                        {% empty %}
-                            <p>There are no videos assigned to this playlist</p>
-                        {% endfor %}
+                                        </button>
+                                        <div class="setting-toggle">
+                                            <div class="setting-toggle-track">
+                                                <div class="setting-toggle-peg">
+
+                                                </div>
+                                            </div>
+                                            <p class="setting-toggle-text">{% if content.published %}Published{% else %}Unpublished{% endif %}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% empty %}
+                                <p>There are no videos assigned to this playlist</p>
+                            {% endfor %}
+                        </div>
                     </div>
+                    {% if can_edit %}
+                        <div id="playlist-publishing-and-collaborators-content" class="column-flex">
+                            <div class="playlist-settings-card">
+                                <div class="playlist-settings-card-header">
+                                    <h4>Publishing Details</h4>
+                                    <p>These people can view</p>
+                                </div>
+                                <div class="column-flex">
+                                    <div id="assigned-courses">
+                                        <p class="pnc-section-header">Courses</p>
+                                        <div id="playlist-semseter-selector-wrapper" class="row-flex">
+                                            <label for="playlist-semester-selector">Semester</label>
+                                            <select id="playlist-semester-selector">
+                                                {% for option in available_yearterms %}
+                                                    <option value="{{ option.value }}"{% if option.value == selected_yearterm %} selected{% endif %}>{{ option.label }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div id="pnc-courses-header">
+                                            <p class="course-title playlist-assignment-item-lead-p">Course</p>
+                                            <p class="course-sections">Sections</p>
+                                        </div>
+                                        {% include "core/partials/course_assignment_list.html" %}
+                                        <button class="blue-button playlist-assignment-button"
+                                                type="button"
+                                                command="show-modal"
+                                                commandfor="add-assigned-course-modal">+ Assign Course</button>
+                                        {% include "core/partials/modals/edit_assigned_course.html" with dialog_id="edit-assigned-course" %}
+                                        {% include "core/partials/modals/delete_assigned_course.html" with dialog_id="delete-assigned-course-modal" %}
+                                        {% include "core/partials/modals/add_assigned_courses.html" with dialog_id="add-assigned-course-modal" %}
+                                    </div>
+                                    <div id="assigned-individuals">
+                                        <p class="pnc-section-header">Individuals</p>
+                                        {% include "core/partials/individual_assignment_list.html" with can_remove=True %}
+                                        <button class="blue-button playlist-assignment-button"
+                                                type="button"
+                                                command="show-modal"
+                                                commandfor="add-assigned-individual-modal">+ Assign Individual</button>
+
+                                        {% include "core/partials/modals/delete_assigned_individual.html" with dialog_id="delete-assigned-individual-modal" %}
+                                        {% include "core/partials/modals/add_assigned_individuals.html" with dialog_id="add-assigned-individual-modal" %}
+                                    </div>
+                                </div>
+
+                            </div>
+                            <div id="assigned-collaborators" class="playlist-settings-card">
+                                <div class="playlist-settings-card-header">
+                                    <h4>Collaborators</h4>
+                                    <p>These people can edit</p>
+                                </div>
+                                <div id="assigned-collaborators">
+                                    {% include "core/partials/individual_assignment_list.html" with individual_accesses=collaborator_accesses membership_list_id="assigned-collaborators-list" empty_message="No collaborators assigned." can_remove=can_administer %}
+                                    {% if can_administer %}
+                                        <button class="blue-button playlist-assignment-button"
+                                                type="button"
+                                                command="show-modal"
+                                                commandfor="add-assigned-collaborator-modal">+ Assign Collaborator</button>
+                                        {% include "core/partials/modals/add_assigned_collaborators.html" with dialog_id="add-assigned-collaborator-modal" %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
                 </div>
-                {% if can_edit %}
-                    <div id="playlist-publishing-and-collaborators-content" class="column-flex">
-                        <div class="playlist-settings-card">
-                            <div class="playlist-settings-card-header">
-                                <h4>Publishing Details</h4>
-                                <p>These people can view</p>
-                            </div>
-                            <div class="column-flex">
-                                <div id="assigned-courses">
-                                    <p class="pnc-section-header">Courses</p>
-                                    <div id="playlist-semseter-selector-wrapper" class="row-flex">
-                                        <label for="playlist-semester-selector">Semester</label>
-                                        <select id="playlist-semester-selector">
-                                            {% for option in available_yearterms %}
-                                                <option value="{{ option.value }}"{% if option.value == selected_yearterm %} selected{% endif %}>{{ option.label }}</option>
-                                            {% endfor %}
-                                        </select>
-                                    </div>
-                                    <div id="pnc-courses-header">
-                                        <p class="course-title playlist-assignment-item-lead-p">Course</p>
-                                        <p class="course-sections">Sections</p>
-                                    </div>
-                                    {% include "core/partials/course_assignment_list.html" %}
-                                    <button class="blue-button playlist-assignment-button"
-                                            type="button"
-                                            command="show-modal"
-                                            commandfor="add-assigned-course-modal">+ Assign Course</button>
-                                    {% include "core/partials/modals/edit_assigned_course.html" with dialog_id="edit-assigned-course" %}
-                                    {% include "core/partials/modals/delete_assigned_course.html" with dialog_id="delete-assigned-course-modal" %}
-                                    {% include "core/partials/modals/add_assigned_courses.html" with dialog_id="add-assigned-course-modal" %}
-                                </div>
-                                <div id="assigned-individuals">
-                                    <p class="pnc-section-header">Individuals</p>
-                                    {% include "core/partials/individual_assignment_list.html" with can_remove=True %}
-                                    <button class="blue-button playlist-assignment-button"
-                                            type="button"
-                                            command="show-modal"
-                                            commandfor="add-assigned-individual-modal">+ Assign Individual</button>
-
-                                    {% include "core/partials/modals/delete_assigned_individual.html" with dialog_id="delete-assigned-individual-modal" %}
-                                    {% include "core/partials/modals/add_assigned_individuals.html" with dialog_id="add-assigned-individual-modal" %}
-                                </div>
-                            </div>
-
-                        </div>
-                        <div id="assigned-collaborators" class="playlist-settings-card">
-                            <div class="playlist-settings-card-header">
-                                <h4>Collaborators</h4>
-                                <p>These people can edit</p>
-                            </div>
-                            <div id="assigned-collaborators">
-                                {% include "core/partials/individual_assignment_list.html" with individual_accesses=collaborator_accesses membership_list_id="assigned-collaborators-list" empty_message="No collaborators assigned." can_remove=can_administer %}
-                                {% if can_administer %}
-                                    <button class="blue-button playlist-assignment-button"
-                                            type="button"
-                                            command="show-modal"
-                                            commandfor="add-assigned-collaborator-modal">+ Assign Collaborator</button>
-                                    {% include "core/partials/modals/add_assigned_collaborators.html" with dialog_id="add-assigned-collaborator-modal" %}
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                {% endif %}
             </div>
         </div>
     </div>
