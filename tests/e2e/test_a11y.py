@@ -436,7 +436,46 @@ def test_the_playlist_page_dialogs_have_no_a11y_violations(
             f"the assign-{assignment_kind} search results",
             include=["dialog[open]"],
         )
-        page.keyboard.press("Escape")
+        # A populated search input can consume Escape instead of closing the dialog.
+        dialog.get_by_role("button", name="Close", exact=True).click()
+        expect(dialog).to_be_hidden()
+
+
+def test_the_playlist_course_dialogs_have_no_a11y_violations(
+    logged_in_page: Page, live_server, awkward_data
+):
+    from core.factories import CourseFactory
+
+    course = CourseFactory(yearterm="20265")
+    playlist = awkward_data.playlist
+    playlist.courses.add(course)
+    page = logged_in_page
+    page.goto(f"{live_server.url}/playlists/{playlist.pk}/?yearterm={course.yearterm}")
+    assert_no_violations(page, "the playlist with an assigned course")
+
+    for dialog_id, trigger, ready_selector in (
+        (
+            "add-assigned-course-modal",
+            "[commandfor='add-assigned-course-modal'][command='show-modal']",
+            "form[data-course-assignment-form]",
+        ),
+        (
+            "edit-assigned-course",
+            "#assigned-courses .edit-course-button",
+            "form[data-course-assignment-form]",
+        ),
+        (
+            "delete-assigned-course-modal",
+            "#assigned-courses .assigned-course-delete",
+            "#unassign-course-confirm:not([disabled])",
+        ),
+    ):
+        page.locator(trigger).first.click()
+        dialog = page.locator(f"#{dialog_id}")
+        expect(dialog.locator(ready_selector)).to_be_visible()
+        assert_no_violations(page, dialog_id, include=["dialog[open]"])
+        dialog.get_by_role("button", name="Close", exact=True).click()
+        expect(dialog).to_be_hidden()
 
 
 def test_the_add_video_modal_chain_has_no_a11y_violations(
@@ -1149,6 +1188,7 @@ AUDITED_TEMPLATES = {
     "core/partials/thumbnail.html",
     "core/partials/playlist_settings.html",
     "core/partials/individual_assignment_list.html",
+    "core/partials/course_assignment_list.html",
     "core/partials/resource_intake_request.html",
     "core/partials/legal_compliance_checkboxes.html",
     "core/resource_access_requests.html",
@@ -1157,6 +1197,10 @@ AUDITED_TEMPLATES = {
     "core/partials/user_message.html",
     # dialogs
     "core/partials/course_assignment.html",
+    "core/partials/assign_courses_to_playlist_form.html",
+    "core/partials/modals/add_assigned_courses.html",
+    "core/partials/modals/edit_assigned_course.html",
+    "core/partials/modals/delete_assigned_course.html",
     "core/partials/create_from_resource_form.html",
     "core/partials/modals/add_new_playlist.html",
     "core/partials/modals/add_video.html",

@@ -1655,8 +1655,12 @@ dialog .assignment-search-input {
     column-gap: 1rem;
 }
 
-.playlist-settings-card-header h4, .playlist-settings-card-header p {
+.playlist-settings-card-header h3, .playlist-settings-card-header p {
     margin: 0;
+}
+
+.playlist-settings-card-header h3 {
+    font-size: 1rem;
 }
 
 /* Create New Playlist Modal */
