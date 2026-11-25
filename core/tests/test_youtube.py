@@ -183,7 +183,7 @@ class CreateContentFromUrlViewTests(TestCase):
         content = Content.objects.get(playlist=self.playlist, title="A YouTube Video")
         self.assertTrue(content.is_url_only())
         self.assertEqual(content.url, "https://www.youtube.com/watch?v=eHEsJyVQn3w")
-        self.assertEqual(content.get_resource().name, "YouTube: eHEsJyVQn3w")
+        self.assertEqual(content.resource.name, "YouTube: eHEsJyVQn3w")
 
     def test_non_owner_non_admin_is_rejected(self):
         other_user = UserFactory()
@@ -237,7 +237,7 @@ class CreateContentFromUrlViewTests(TestCase):
         self.assertEqual(resources.count(), 1)
         first_content = Content.objects.get(playlist=self.playlist, title="First")
         second_content = Content.objects.get(playlist=other_playlist, title="Second")
-        self.assertEqual(first_content.get_resource(), second_content.get_resource())
+        self.assertEqual(first_content.resource, second_content.resource)
 
 
 @modify_settings(

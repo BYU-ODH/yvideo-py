@@ -27,7 +27,6 @@ from ..factories import ResourceFactory
 from ..factories import ResourceFileFactory
 from ..factories import SubtitleFactory
 from ..factories import TrackFactory
-from ..factories import UserCourseFactory
 from ..factories import UserFactory
 from ..models import AnnotationSet
 from ..models import BlurAnchorPoint
@@ -153,11 +152,6 @@ class DisplayYeartermTests(TestCase):
         course = CourseFactory(yearterm="")
         self.assertEqual(course.display_yearterm(), "")
         str(course)  # must not raise UnboundLocalError
-
-    def test_user_course_invalid_term_returns_raw_yearterm(self):
-        user_course = UserCourseFactory(yearterm="20262")
-        self.assertEqual(user_course.display_yearterm(), "20262")
-        str(user_course)  # must not raise UnboundLocalError
 
 
 class Seconds2HMSTests(TestCase):
@@ -964,8 +958,7 @@ class ContentHasClipsWarningTests(TestCase):
         self.user = UserFactory(instructor=True)
         # Rendering the settings form is a GET request, which
         # mozilla_django_oidc's SessionRefresh middleware intercepts unless the
-        # session's auth backend is explicitly non-OIDC (see test_legacy_migration.py
-        # for the same pattern).
+        # session's auth backend is explicitly non-OIDC.
         self.client.force_login(
             self.user, backend="django.contrib.auth.backends.ModelBackend"
         )

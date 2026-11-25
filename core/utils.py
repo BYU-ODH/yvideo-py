@@ -1,4 +1,8 @@
+import logging
+
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 ANNOTATION_DESCRIPTIONS = {
     "skip": "Sets the video to the end time. Any scrubber clicks between the start and end of a skip are automatically moved to the end time.",
@@ -44,6 +48,21 @@ def estimate_current_yearterm(today=None):
     else:
         term = "1"  # Winter
     return f"{today.year}{term}"
+
+
+TERM_NAMES = {"1": "Winter", "3": "Spring", "4": "Summer", "5": "Fall"}
+
+
+def display_yearterm(yearterm):
+    """Human-readable yearterm, e.g. "20261" -> "Winter 2026"."""
+    if not yearterm:
+        return ""
+    try:
+        term_name = TERM_NAMES[yearterm[4:]]
+    except KeyError:
+        logger.error(f"Invalid yearterm: {yearterm}")
+        return yearterm
+    return f"{term_name} {yearterm[:4]}"
 
 
 def hms2seconds(hms):

@@ -56,7 +56,7 @@
                     <th scope="col">Title</th>
                     <th scope="col">Needed by</th>
                     <th scope="col">Requested</th>
-                    {% if user.is_admin %}
+                    {% if user.is_superuser %}
                         <th scope="col">Action</th>
                     {% endif %}
                 </tr>
@@ -73,7 +73,7 @@
                         </td>
                         <td>{{ intake_request.date_needed|date }}</td>
                         <td>{{ intake_request.created_at|date }}</td>
-                        {% if user.is_admin %}
+                        {% if user.is_superuser %}
                             <td>
                                 <a href="{% url 'admin:core_resourceintakerequest_change' intake_request.pk %}"
                                    aria-label="Open in admin: {{ intake_request.resource_title }}">Open in admin</a>
@@ -82,7 +82,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="{% if user.is_admin %}5{% else %}4{% endif %}">No pending new resource requests.</td>
+                        <td colspan="{% if user.is_superuser %}5{% else %}4{% endif %}">No pending new resource requests.</td>
                     </tr>
                 {% endfor %}
             </tbody>

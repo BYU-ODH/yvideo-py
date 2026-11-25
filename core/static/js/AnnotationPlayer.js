@@ -1269,13 +1269,31 @@ export class AnnotationPlayer {
     this.wasPlayingBeforeDrag = false;
   }
 
-  toggleFullscreen() {
+  toggleFullscreen(rotateToFit = true) {
     if (!this.controls.container) return;
 
     const elem = this.controls.container;
 
+    if (elem.classList.contains('viewport-fullscreen')) {
+      this._setViewportFullscreen(false);
+      return;
+    }
+
     if (!this.state.fullscreen) {
-      if (elem.requestFullscreen) elem.requestFullscreen();
+      // iPhone Safari can only fullscreen a bare <video> through the system player, which does
+      // not draw our blur overlay, so there we stretch the player over the page instead.
+      const enabled = document.fullscreenEnabled || document.webkitFullscreenEnabled ||
+        document.mozFullScreenEnabled || document.msFullscreenEnabled;
+      if (!enabled) {
+        this._setViewportFullscreen(true);
+        return;
+      }
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen().then(
+          () => { if (rotateToFit) this._rotateToFitVideo(); },
+          () => { if (this.state.fullscreen) this._setViewportFullscreen(true); },
+        );
+      }
       else if (elem.mozRequestFullScreen) elem.mozRequestFullScreen();
       else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
       else if (elem.msRequestFullscreen) elem.msRequestFullscreen();
@@ -1298,6 +1316,66 @@ export class AnnotationPlayer {
       this.state.fullscreen = isFullscreen;
       this._updateFullscreenIcon();
     }
+    if (!isFullscreen && this._lockedOrientation) {
+      // Releasing a portrait lock may turn the screen back sideways; that is not the user rotating.
+      // It may also turn nothing, so this lapses rather than waiting for a rotation.
+      if (this._lockedOrientation === 'portrait') this._ignoreRotationsUntil = performance.now() + 1000;
+      this._forgetOrientationLock();
+    }
+    this._syncOverlayToFrame();
+  }
+
+  // Only when the phone is held the "wrong" way for the video, since a lock stops the screen
+  // following the phone. Only Android honours the lock.
+  _rotateToFitVideo() {
+    const target = this.videoElem.videoHeight > this.videoElem.videoWidth ? 'portrait' : 'landscape';
+    const orientation = screen.orientation;
+    if (!orientation?.lock || orientation.type.startsWith(target)) return;
+    this._lockedOrientation = target;
+    orientation.lock(target).catch(() => this._forgetOrientationLock());
+    if (target === 'landscape') {
+      window.addEventListener('deviceorientation', this._onDeviceOrientation);
+    }
+  }
+
+  // The browser releases the lock itself when fullscreen ends.
+  _forgetOrientationLock() {
+    this._lockedOrientation = null;
+    this._uprightSince = null;
+    this._turnedSideways = false;
+    window.removeEventListener('deviceorientation', this._onDeviceOrientation);
+  }
+
+  // While locked sideways the screen no longer turns with the phone, so the motion sensor is the
+  // only way to notice the user turning it upright to leave. The phone is still upright when the
+  // lock starts, so only an upright hold after it has been turned counts, and only for half a
+  // second so a wobble does not.
+  _onDeviceOrientation = (e) => {
+    if (e.beta === null || e.gamma === null) return;
+    if (Math.abs(e.gamma) > 45) this._turnedSideways = true;
+    if (!(e.beta > 60 && Math.abs(e.gamma) < 30)) {
+      this._uprightSince = null;
+      return;
+    }
+    if (!this._turnedSideways) return;
+    this._uprightSince ??= e.timeStamp;
+    if (e.timeStamp - this._uprightSince > 500) {
+      this._forgetOrientationLock();
+      this.toggleFullscreen();
+    }
+  };
+
+  _onScreenRotated() {
+    // Our own lock turned the screen, not the user.
+    if (this._lockedOrientation || performance.now() < this._ignoreRotationsUntil) return;
+    const landscape = screen.orientation.type.startsWith('landscape');
+    if (landscape !== this.state.fullscreen) this.toggleFullscreen(false);
+  }
+
+  _setViewportFullscreen(on) {
+    this.controls.container.classList.toggle('viewport-fullscreen', on);
+    this.state.fullscreen = on;
+    this._updateFullscreenIcon();
     this._syncOverlayToFrame();
   }
 
@@ -1736,6 +1814,14 @@ export class AnnotationPlayer {
 
     if (this.controls.fullscreenBtn) {
       this.controls.fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
+
+      // Like phone video apps: turning the phone sideways enters fullscreen, turning it upright
+      // leaves. Not in the editor, where landscape is just a roomier editing layout.
+      const isPhone = window.matchMedia('(pointer: coarse)').matches &&
+        Math.min(screen.width, screen.height) <= 500;
+      if (isPhone && !this.editorMode) {
+        screen.orientation?.addEventListener('change', () => this._onScreenRotated());
+      }
     }
 
     document.addEventListener('fullscreenchange', () => this.onFullscreenChange());

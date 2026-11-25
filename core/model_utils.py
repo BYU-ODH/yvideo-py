@@ -51,33 +51,29 @@ def get_or_create_course(course, yearterm):
     return course_obj
 
 
-def create_user_course_association(user, course, yearterm):
+def create_user_course_association(user, course):
     """
     Check if there is already a user-course association. If an association
     exists or if one was created, return True. If an error occured, return False
     """
     try:
         associations = list(
-            UserCourses.objects.filter(
-                user_id=user.id, course_id=course.id, yearterm=yearterm
-            )
+            UserCourses.objects.filter(user_id=user.id, course_id=course.id)
         )
     except Exception as e:
         log_error(
             "An error occurred while filtering UserCourses objects",
-            {"user": user, "course": course, "yearterm": yearterm},
+            {"user": user, "course": course},
             e,
         )
         return False
     try:
         if not associations:
-            UserCourses.objects.create(
-                user_id=user.id, course_id=course.id, yearterm=yearterm
-            )
+            UserCourses.objects.create(user_id=user.id, course_id=course.id)
     except Exception as e:
         log_error(
             "An error occurred while associating a user with a course",
-            {"user": user, "course": course, "yearterm": yearterm},
+            {"user": user, "course": course},
             e,
         )
         return False
@@ -108,7 +104,7 @@ def sync_term_enrollment(user, yearterm, enrollment_records):
         if course is None:
             succeeded = False
             continue
-        if create_user_course_association(user, course, yearterm):
+        if create_user_course_association(user, course):
             enrolled_course_ids.add(course.id)
         else:
             succeeded = False
@@ -116,7 +112,7 @@ def sync_term_enrollment(user, yearterm, enrollment_records):
     if not succeeded:
         return False
 
-    UserCourses.objects.filter(user=user, yearterm=yearterm).exclude(
+    UserCourses.objects.filter(user=user, course__yearterm=yearterm).exclude(
         course_id__in=enrolled_course_ids
     ).delete()
     return True

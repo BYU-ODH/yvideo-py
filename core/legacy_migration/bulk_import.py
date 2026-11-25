@@ -31,11 +31,13 @@ from ..models import ResourceAccess
 from ..models import ResourceFile
 from ..models import Subtitle
 from ..models import User
+from . import LEGACY_USERNAME_PREFIX
+from .annotations import annotation_model_for_type
+from .annotations import import_annotations
 from .legacy_roles import map_legacy_collection_role
 from .models import LegacySourceMap
 from .parsers import LEGACY_URL_ONLY_RESOURCE_ID
 from .parsers import map_legacy_media_type
-from .service import LegacyMigrationService
 from .sql_dump import iter_postgres_copy_rows
 
 # Keep the source scope explicit: do not import Django's old auth_user table.
@@ -154,42 +156,6 @@ _LEGACY_ZONE_MINUTES = {
 
 class BulkImportError(ValueError):
     pass
-
-
-class _AnnotationImporter(LegacyMigrationService):
-    """Reuse the existing annotation conversion without creating jobs or requests."""
-
-    def __init__(self, importer, owner):
-        super().__init__(require_catalog=False)
-        self.importer = importer
-        self.owner = owner
-
-    def _get_target_owner(self, request_obj):
-        return self.owner
-
-    def _upsert_source_map(
-        self, request_obj, source_type, source_id, target_obj, metadata=None
-    ):
-        self.importer.record(source_type, source_id, target_obj, metadata or {})
-
-    def import_events(self, content, identifier, annotations, clips):
-        # Annotation names are unique per resource/owner, not per playlist.
-        name = self.importer._name(
-            AnnotationSet.objects.filter(
-                resource=content.get_resource(), owner=self.owner
-            ),
-            "name",
-            f"Imported {content.title} Annotations",
-            identifier,
-            255,
-        )
-        annotation_set = self.importer._create_annotation_set(
-            name=name,
-            resource=content.get_resource(),
-            owner=self.owner,
-        )
-        self.importer.record("annotation_set", str(content.pk), annotation_set, {})
-        self._import_annotations(None, content, annotations, clips)
 
 
 class LegacyBulkImporter:
@@ -375,8 +341,12 @@ class LegacyBulkImporter:
         excluded = {
             identifier
             for identifier, row in users.items()
-            if not self._valid_byu_id(row["byu_person_id"])
-            or str(row["account_type"]).strip() == "3"
+            if identifier not in self.user_map
+            and (
+                not self._valid_byu_id(row["byu_person_id"])
+                or not (row["username"] or "").strip()
+                or str(row["account_type"]).strip() == "3"
+            )
         }
         self.skipped_users = {
             identifier: {
@@ -600,7 +570,7 @@ class LegacyBulkImporter:
                 skipped_user = self.skipped_users[identifier]
                 raise BulkImportError(
                     f"Required owner with netid {skipped_user['netid']!r} "
-                    f"({identifier}) was excluded (BYU ID "
+                    f"({identifier}) was excluded (BYU Person ID "
                     f"{skipped_user['byu_person_id']!r}, "
                     f"account_type={skipped_user['account_type']!r}); "
                     "cannot import this collection without an owner."
@@ -736,33 +706,25 @@ class LegacyBulkImporter:
                 raise BulkImportError("--user-map must name an existing target user.")
             return target, False
         netid = (row["username"] or "").strip()
-        byu_id = (row["byu_person_id"] or "").strip()
-        if not self._valid_byu_id(byu_id):
-            raise BulkImportError(
-                f"A valid nine-digit byu_person_id is required for netid {netid!r}; "
-                "use --user-map for this user."
-            )
         if len(netid) > 8:
             raise BulkImportError(
                 "Legacy netid exceeds eight characters; map this user explicitly with --user-map."
             )
-        if netid:
-            candidates = list(User.objects.filter(netid=netid).order_by("pk"))
-            if len(candidates) > 1:
-                identifiers = ", ".join(str(user.pk) for user in candidates)
-                raise BulkImportError(
-                    f"Netid {netid!r} belongs to multiple target users ({identifiers}); "
-                    "supply --user-map to choose one."
-                )
-            if candidates:
-                return candidates[0], False
-        existing = User.objects.filter(username=byu_id).first()
-        if existing:
-            return existing, False
+        candidates = list(User.objects.filter(netid__iexact=netid).order_by("pk"))
+        if len(candidates) > 1:
+            identifiers = ", ".join(str(user.pk) for user in candidates)
+            raise BulkImportError(
+                f"Netid {netid!r} belongs to multiple target users ({identifiers}); "
+                "supply --user-map to choose one."
+            )
+        if candidates:
+            return candidates[0], False
         first, _, last = (row["account_name"] or "").strip().partition(" ")
+        # Legacy stores the BYU Person ID, not the BYU ID that login matches on,
+        # so login renames this account once the user first signs in.
         user = User(
-            username=byu_id,
-            netid=netid or None,
+            username=LEGACY_USERNAME_PREFIX + netid,
+            netid=netid,
             email=row["email"] or "",
             first_name=first,
             last_name=last,
@@ -909,7 +871,12 @@ class LegacyBulkImporter:
             usernames = {user.username for user in matches}
             if len(usernames) == 1:
                 candidate = next(iter(usernames))
-                requester = candidate if len(candidate) <= 9 else ""
+                # An imported user's placeholder username changes at first login,
+                # so it can't identify the requester later.
+                if len(candidate) <= 9 and not candidate.startswith(
+                    LEGACY_USERNAME_PREFIX
+                ):
+                    requester = candidate
         resource = Resource(
             name=name,
             name_disambiguator=disambiguator,
@@ -926,6 +893,11 @@ class LegacyBulkImporter:
 
     def _collection(self, row):
         owner = self._require("users", row["owner"])
+        # Legacy let staff own collections, but only instructors can own
+        # playlists here.
+        if owner.privilege_level_override is None and not owner.is_instructor:
+            owner.privilege_level_override = PrivilegeLevel.INSTRUCTOR
+            owner.save(update_fields=["privilege_level_override"])
         return self._save(
             Playlist(
                 owner=owner,
@@ -965,11 +937,7 @@ class LegacyBulkImporter:
         return self._save(target), True
 
     def _content(self, row):
-        playlist = (
-            self._require("collections", row["collection_id"])
-            if row["collection_id"]
-            else None
-        )
+        playlist = self._require("collections", row["collection_id"])
         resource_id = row["resource_id"]
         file_id = row["file_id"]
         url = (row["url"] or "").strip()
@@ -1011,7 +979,7 @@ class LegacyBulkImporter:
                     row["id"],
                     255,
                 ),
-                url=url or None,
+                url=url,
                 description=row["description"] or "",
                 allow_definitions=self._boolean(row["allow_definitions"], default=True),
                 allow_captions=self._boolean(row["allow_captions"], default=True),
@@ -1022,13 +990,8 @@ class LegacyBulkImporter:
         annotations = self._events(row["annotations"], annotations=True)
         clips = self._events(row["clips"])
         if annotations or clips:
-            if playlist is None:
-                raise BulkImportError(
-                    "Content with annotations/clips needs a collection owner."
-                )
-            service = _AnnotationImporter(self, playlist.owner)
             for event in annotations:
-                if service._annotation_model_for_type(event.get("type")) is None:
+                if annotation_model_for_type(event.get("type")) is None:
                     raise BulkImportError(
                         f"Unsupported annotation type: {event.get('type')!r}"
                     )
@@ -1044,7 +1007,22 @@ class LegacyBulkImporter:
                     or f"{target.title} Clip {index + 1}"
                 )
                 clip["title"] = str(label)[:255]
-            service.import_events(target, row["id"], annotations, clips)
+            # Annotation names are unique per resource/owner, not per playlist.
+            annotation_set = self._create_annotation_set(
+                name=self._name(
+                    AnnotationSet.objects.filter(
+                        resource=target.resource, owner=playlist.owner
+                    ),
+                    "name",
+                    f"Imported {target.title} Annotations",
+                    row["id"],
+                    255,
+                ),
+                resource=target.resource,
+                owner=playlist.owner,
+            )
+            self.record("annotation_set", str(target.pk), annotation_set, {})
+            import_annotations(annotation_set, target, annotations, clips)
         return target, True
 
     @staticmethod
@@ -1097,10 +1075,6 @@ class LegacyBulkImporter:
 
     def _subtitle(self, row):
         content = self._require("contents", row["content_id"])
-        if content.playlist_id is None:
-            raise BulkImportError(
-                "Subtitle ownership cannot be inferred without a content collection."
-            )
         language_code = (row["language"] or "").strip()
         languages = list(
             Language.objects.filter(
@@ -1116,12 +1090,12 @@ class LegacyBulkImporter:
         owner = content.playlist.owner
 
         target = Subtitle(
-            resource=content.get_resource(),
+            resource=content.resource,
             owner=owner,
             language=language,
             name=self._name(
                 Subtitle.objects.filter(
-                    resource=content.get_resource(), owner=owner, language=language
+                    resource=content.resource, owner=owner, language=language
                 ),
                 "name",
                 row["title"] or language.language,

@@ -28,7 +28,6 @@ from core.models import TERM_GRACE_PERIOD
 from core.models import PlaylistRole
 from core.models import ResourceFileKey
 from core.models import User
-from core.models import UserCourses
 from core.models import YearTerm
 from core.models import active_yearterms
 from core.utils import estimate_current_yearterm
@@ -119,17 +118,13 @@ class CourseDerivedAccessTests(TestCase):
         self.playlist.courses.add(self.course)
         self.content = ContentFactory(playlist=self.playlist, published=True)
         self.student = UserFactory(student=True)
-        self.enrollment = UserCourseFactory(
-            user=self.student, course=self.course, yearterm="20265"
-        )
+        UserCourseFactory(user=self.student, course=self.course)
 
     def test_a_currently_enrolled_student_can_view_the_content(self):
         self.assertTrue(self.content.can_be_viewed_by(self.student))
         self.assertTrue(self.playlist.can_be_viewed_by(self.student))
 
     def test_an_enrollment_from_an_expired_term_does_not_grant_access(self):
-        self.enrollment.yearterm = "20241"
-        self.enrollment.save()
         self.course.yearterm = "20241"
         self.course.save()
 
@@ -158,11 +153,6 @@ class CourseDerivedAccessTests(TestCase):
         UserCourseFactory(user=other_student, course=CourseFactory(yearterm="20265"))
 
         self.assertFalse(self.content.can_be_viewed_by(other_student))
-
-    def test_enrollment_and_course_yearterms_agree(self):
-        """A mismatch would silently grant or deny access; see #366."""
-        for enrollment in UserCourses.objects.all():
-            self.assertEqual(enrollment.yearterm, enrollment.course.yearterm)
 
     def test_the_listing_hides_playlists_the_student_could_not_open(self):
         unpublished = PlaylistFactory(owner=self.owner, published=False)
@@ -193,7 +183,9 @@ class ResourceAccessTests(TestCase):
         self.granted_resource = ResourceFactory()
         ResourceAccessFactory(user=self.instructor, resource=self.granted_resource)
         self.ungranted_resource = ResourceFactory()
-        self.library_resource = ResourceFactory(checked_out_from_hbll=True)
+        self.library_resource = ResourceFactory(
+            checked_out_from_hbll=True, byu_call_number="PN1997 .G73 2014"
+        )
 
     def test_an_explicit_grant_gives_access(self):
         self.assertTrue(self.instructor.can_access_resource(self.granted_resource))
@@ -206,7 +198,9 @@ class ResourceAccessTests(TestCase):
         self.assertTrue(self.instructor.can_access_resource(self.library_resource))
 
     def test_other_byu_library_counts_too(self):
-        other = ResourceFactory(checked_out_from_other_byu_library=True)
+        other = ResourceFactory(
+            checked_out_from_other_byu_library=True, byu_call_number="PN1997 .G73 2014"
+        )
 
         self.assertTrue(self.instructor.can_access_resource(other))
 
@@ -247,9 +241,7 @@ class ResourceAccessTests(TestCase):
         self.assertFalse(student.can_access_resource(self.granted_resource))
 
     def test_the_library_listing_matches_the_predicate(self):
-        from core.views import accessible_resources
-
-        visible = set(accessible_resources(self.instructor))
+        visible = set(self.instructor.accessible_resources())
 
         self.assertEqual(visible, {self.granted_resource, self.library_resource})
 

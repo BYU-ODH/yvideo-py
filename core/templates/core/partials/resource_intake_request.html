@@ -5,7 +5,7 @@
 {% block title %}Request a resource{% endblock %}
 {% block content %}
     <div id="resource-intake-form-wrapper">
-        <h2>Resource Intake Request</h2>
+        <h2>Request a resource</h2>
         <div id="resource-intake-form-main-content">
             <section aria-labelledby="resource-search-heading">
                 <h3 id="resource-search-heading">Step 1: Check whether the resource is already in Y-Video</h3>
@@ -102,6 +102,10 @@
                                     <div class="resource-intake-form-group">
                                         <label for="{{ form.subtitle_language.id_for_label }}">Subtitle Language (optional)</label>
                                         {{ form.subtitle_language }}
+                                    </div>
+                                    <div class="resource-intake-form-group{% if form.language_notes.errors %} resource-intake-field-error{% endif %}">
+                                        <label for="{{ form.language_notes.id_for_label }}">Other Language (required if "Other" is chosen)</label>
+                                        {{ form.language_notes }}
                                     </div>
                                 </div>
                             </div>

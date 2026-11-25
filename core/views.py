@@ -43,6 +43,8 @@ from .forms import EditAssignedCoursesForm
 from .forms import LegalComplianceForm
 from .forms import PlaylistSettingsForm
 from .forms import ResourceIntakeRequestForm
+from .models import THUMBNAIL_COLORS
+from .models import THUMBNAIL_TEXT_COLORS
 from .models import Content
 from .models import Course
 from .models import Playlist
@@ -69,6 +71,7 @@ from .permissions import playlist_admin_required
 from .permissions import playlist_read_required
 from .permissions import playlist_write_required
 from .utils import estimate_current_yearterm
+from .utils import display_yearterm
 from .youtube_utils import get_or_create_youtube_resource
 from .youtube_utils import parse_youtube_video_id
 from .youtube_utils import youtube_video_id_for_content
@@ -123,18 +126,6 @@ def thumbnail_editor_response(url_name, item):
     return JsonResponse({"thumbnail_editor_url": reverse(url_name, args=[item.pk])})
 
 
-def display_yearterm(yearterm):
-    term_decoder = {"1": "Winter", "3": "Spring", "4": "Summer", "5": "Fall"}
-    year_string = yearterm[0:4]
-    term_string = yearterm[4:]
-    try:
-        term_name = term_decoder[term_string]
-    except KeyError:
-        logger.error(f"Invalid yearterm: {yearterm}")
-        return yearterm
-    return f"{term_name} {year_string}"
-
-
 def breadcrumb_trail(*crumbs):
     """(label, url) pairs for partials/breadcrumbs.html, under the Playlists root.
 
@@ -147,9 +138,6 @@ def breadcrumb_trail(*crumbs):
 
 
 def content_parent_crumbs(content):
-    """Content.playlist is nullable, so the parent crumb is not always available."""
-    if content.playlist_id is None:
-        return ()
     return (
         (content.playlist.name, reverse("playlist_info", args=[content.playlist_id])),
     )
@@ -432,11 +420,13 @@ def playlists(request):
     # organize assigned playlists by yearterm and then by course.
     playlists_by_course_by_yearterm = []
     for yearterm in sorted(
-        UserCourses.objects.filter(user=request.user, yearterm__in=active)
-        .values_list("yearterm", flat=True)
+        UserCourses.objects.filter(user=request.user, course__yearterm__in=active)
+        .values_list("course__yearterm", flat=True)
         .distinct()
     ):
-        user_courses = UserCourses.objects.filter(user=request.user, yearterm=yearterm)
+        user_courses = UserCourses.objects.filter(
+            user=request.user, course__yearterm=yearterm
+        )
         playlists_by_course = []
         for user_course in user_courses:
             course_playlists = Playlist.objects.filter(
@@ -894,7 +884,7 @@ def get_course_access_summary(playlist):
     """Courses that reach this playlist, and how many students that is.
 
     The count mirrors Playlist.can_be_viewed_by exactly -- distinct users holding a
-    UserCourses row whose own yearterm is active, on a course assigned here. Counting
+    UserCourses row on a course assigned here whose yearterm is active. Counting
     any other way would advertise access the app does not actually grant.
     """
     yearterms = active_yearterms()
@@ -905,13 +895,7 @@ def get_course_access_summary(playlist):
     counts = (
         playlist.courses.filter(yearterm__in=yearterms)
         .values("dept", "catalog_number")
-        .annotate(
-            student_count=Count(
-                "usercourses__user",
-                filter=Q(usercourses__yearterm__in=yearterms),
-                distinct=True,
-            )
-        )
+        .annotate(student_count=Count("usercourses__user", distinct=True))
         .order_by("dept", "catalog_number")
     )
 
@@ -1106,25 +1090,6 @@ def remove_playlist_member(request, playlist, user_id):
     return render_playlist_members_roster(request, playlist)
 
 
-def accessible_resources(user):
-    """The resource library as `user` may see it, matching User.can_access_resource."""
-    if user.is_superuser or user.is_lab_assistant:
-        return Resource.objects.all()
-    granted = Q(resourceaccess__user=user)
-    # A collaborator inherits every grant held by the owner of a playlist
-    # they can write to.
-    inherited = Q(
-        resourceaccess__user__playlists_owned__playlistuseraccess__user=user,
-        resourceaccess__user__playlists_owned__playlistuseraccess__playlist_role=PlaylistRole.COLLABORATOR,
-    )
-    visible = granted | inherited
-    if user.is_instructor:
-        visible |= Q(checked_out_from_hbll=True) | Q(
-            checked_out_from_other_byu_library=True
-        )
-    return Resource.objects.filter(visible).distinct()
-
-
 def get_playlist_contents(playlist):
     contents = Content.objects.filter(playlist=playlist)
     published = contents.filter(published=True)
@@ -1248,7 +1213,7 @@ def render_create_from_resource_resources(request, playlist):
     return render(
         request,
         "core/partials/resource_list.html",
-        {"resources": accessible_resources(request.user)},
+        {"resources": request.user.accessible_resources()},
     )
 
 
@@ -1363,7 +1328,7 @@ def update_content(request, content):
 
         default_subtitle_id = data.get("default_subtitle_track_id")
         if default_subtitle_id:
-            resource = content.get_resource()
+            resource = content.resource
             content.default_subtitle_track = Subtitle.objects.filter(
                 pk=default_subtitle_id, resource=resource
             ).first()
@@ -1432,9 +1397,9 @@ def spoof_user_search(request):
         )
         & ~Q(id=actor.id)
     )
-    if not actor.is_admin:
+    if not actor.is_superuser:
         # Lab assistants may spoof any non-admin user, but never an admin.
-        users = users.exclude(User.is_admin_q())
+        users = users.exclude(is_superuser=True)
     users = users.order_by("last_name")[:25]
     html = render_to_string(
         "core/partials/spoof_user_options_for_select.html", {"users": users}
@@ -1467,7 +1432,7 @@ def _search_resources(user, query):
         .prefetch_related(_barcoded_files("resource_files"))[:SEARCH_RESULT_LIMIT]
     )
     accessible_ids = set(
-        accessible_resources(user)
+        user.accessible_resources()
         .filter(pk__in=[r.pk for r in resources])
         .values_list("pk", flat=True)
     )
@@ -1528,7 +1493,11 @@ def resource_access_requests(request):
     return render(
         request,
         "core/resource_access_requests.html",
-        {"access_requests": pending, "intake_requests": intake_requests},
+        {
+            "access_requests": pending,
+            "intake_requests": intake_requests,
+            "breadcrumbs": breadcrumb_trail(("Resource Requests", None)),
+        },
     )
 
 
@@ -1599,6 +1568,7 @@ def request_resource(request):
             ),
             # Its ids must differ from the intake form's copy of the same checkboxes.
             "access_form": LegalComplianceForm(auto_id="access-%s"),
+            "breadcrumbs": breadcrumb_trail(("Request a resource", None)),
         },
     )
 
@@ -1613,15 +1583,30 @@ def _youtube_thumbnail_url(video_id):
     return f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
 
 
+# Thumbnails saved before these palettes existed may use some other color. Offering it
+# as an extra choice keeps it from being replaced when the user saves other changes.
+def _thumbnail_palette(colors, current):
+    if current.lower() in (hexcode for _, hexcode in colors):
+        return colors
+    return [*colors, ("Current color", current)]
+
+
 def _render_thumbnail_editor(request, item, save_url):
     stream_url = None
     if isinstance(item, Content) and item.resource_file_id:
         key = request.user.get_resource_filekey(item)
         stream_url = reverse("stream_file", args=[key.pk]) if key else None
     video_id = _thumbnail_youtube_video_id(request, item)
+    thumbnail = Thumbnail.for_item(item)
     context = {
         "dialog_id": "thumbnail-editor-dialog",
-        "thumbnail": Thumbnail.for_item(item),
+        "thumbnail": thumbnail,
+        "background_palette": _thumbnail_palette(
+            THUMBNAIL_COLORS, thumbnail.background_color
+        ),
+        "text_palette": _thumbnail_palette(
+            THUMBNAIL_TEXT_COLORS, thumbnail.text_settings["color"]
+        ),
         "save_url": save_url,
         "stream_url": stream_url,
         "youtube_image_url": _youtube_thumbnail_url(video_id) if video_id else None,
@@ -1635,7 +1620,9 @@ def _save_thumbnail(request, item):
 
     background_color = request.POST.get("background_color", "")
     text_color = request.POST.get("text_color", "")
-    text = request.POST.get("text", "").strip()
+    # Browsers send each line break as two characters, which would count double
+    # against the length limit.
+    text = request.POST.get("text", "").replace("\r\n", "\n").strip()
     try:
         text_size = float(request.POST.get("text_size", ""))
     except ValueError:

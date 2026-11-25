@@ -5,18 +5,16 @@ from pathlib import Path
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
 from django.db import transaction
 from django.utils import timezone
 
-from core.legacy_migration import LegacyMigrationService
 from core.legacy_migration import LegacySourceMap
 from core.legacy_migration import io_limits
 from core.legacy_migration.file_index import compute_checksum
 from core.legacy_migration.io_limits import lower_process_priority
-from core.legacy_migration.remote_files import is_remote_legacy_path
-from core.legacy_migration.remote_files import resolve_legacy_file_path
 from core.models import Content
 from core.models import ResourceFile
 from core.models import Subtitle
@@ -25,6 +23,21 @@ from core.subtitle_uploads import build_subtitle_vtt
 
 class SkipItem(Exception):
     pass
+
+
+def _storage_destination(source_path, resource, version):
+    relative_name = f"{resource.pk}/{version}{source_path.suffix.lower()}"
+    destination = Path(settings.MEDIA_ROOT) / relative_name
+    if destination.exists():
+        if ResourceFile.objects.filter(file=relative_name).exists():
+            # The path belongs to another resource file; never clobber it.
+            relative_name = default_storage.get_available_name(relative_name)
+            destination = Path(settings.MEDIA_ROOT) / relative_name
+        else:
+            # Stale leftover from an earlier failed import attempt.
+            destination.unlink()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    return relative_name, destination
 
 
 class Command(BaseCommand):
@@ -56,13 +69,13 @@ class Command(BaseCommand):
             io_limits.max_read_mbps = previous_limit
 
     def _run(self, options):
-        if is_remote_legacy_path(settings.LEGACY_MIGRATION_MEDIA_ROOT):
+        self.legacy_root = Path(settings.LEGACY_MIGRATION_MEDIA_ROOT)
+        if not settings.LEGACY_MIGRATION_MEDIA_ROOT or not self.legacy_root.is_dir():
             raise CommandError(
-                "LEGACY_MIGRATION_MEDIA_ROOT must be a local path on the same "
-                "filesystem as MEDIA_ROOT."
+                "LEGACY_MIGRATION_MEDIA_ROOT must be a local path to an existing "
+                "directory on the same filesystem as MEDIA_ROOT."
             )
         self.commit = options["commit"]
-        self.service = LegacyMigrationService(require_catalog=False)
         self.stdout.write(
             "COMMIT: transferring legacy media."
             if self.commit
@@ -112,7 +125,7 @@ class Command(BaseCommand):
         filepath = mapping.metadata.get("source_row", {}).get("filepath")
         if not filepath:
             raise SkipItem("Legacy row has no filepath.")
-        source = Path(resolve_legacy_file_path(filepath))
+        source = self.legacy_root / filepath
         self._check_source(source)
         if not self.commit:
             return "would link"
@@ -140,7 +153,7 @@ class Command(BaseCommand):
                 self._mark_done(mapping)
             return f"duplicate of ResourceFile {existing.pk}"
 
-        relative_name, destination = self.service._storage_destination(
+        relative_name, destination = _storage_destination(
             source, resource_file.resource, resource_file.version
         )
         os.link(source, destination)

@@ -1,0 +1,48 @@
+# The workflow_run trigger is temporary until the Dec 18 prod release; after that, run this manually.
+name: Merge main into prod
+
+on:
+  workflow_run:
+    workflows: [Tests]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: merge-main-into-prod
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    # A fork PR from a branch named main also reports its head branch as main, so require a push.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    steps:
+    # The prod ruleset only lets this app push, so the default token can't be used.
+    - uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+      id: app-token
+      with:
+        client-id: ${{ secrets.PROD_MERGE_APP_CLIENT_ID }}
+        private-key: ${{ secrets.PROD_MERGE_APP_PRIVATE_KEY }}
+        permission-contents: write
+
+    - uses: actions/checkout@v6
+      with:
+        ref: prod
+        fetch-depth: 0
+        token: ${{ steps.app-token.outputs.token }}
+
+    # Merge the commit that passed tests, not whatever main has moved on to since.
+    - name: Merge main into prod
+      env:
+        MERGE_REF: ${{ github.event.workflow_run.head_sha || 'origin/main' }}
+      run: |
+        git config user.name "${{ steps.app-token.outputs.app-slug }}[bot]"
+        git config user.email "${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com"
+        git merge --no-edit "$MERGE_REF"
+        git push origin prod

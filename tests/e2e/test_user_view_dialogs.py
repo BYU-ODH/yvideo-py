@@ -150,7 +150,11 @@ def test_existing_resource_modal_chain_stays_on_the_playlist_page(
     resource_form_modal.get_by_role("button", name="Create").click()
     thumbnail_editor = logged_in_page.locator("#thumbnail-editor-dialog")
     expect(thumbnail_editor).to_be_visible()
-    expect(thumbnail_editor.locator("#thumbnail-frames img")).to_have_count(3)
+    thumbnail_editor.get_by_role("tab", name="Video frame").click()
+    scrubber = thumbnail_editor.get_by_role("slider", name="Scrub through the video")
+    start = float(scrubber.input_value())
+    thumbnail_editor.get_by_role("button", name="Forward 0.1 second").click()
+    assert float(scrubber.input_value()) == pytest.approx(start + 0.1)
     with logged_in_page.expect_navigation():
         thumbnail_editor.get_by_role("button", name="Save").click()
 

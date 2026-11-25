@@ -162,65 +162,6 @@ class WhatsNewBannerTests(TestCase):
     MIDDLEWARE={"remove": ["mozilla_django_oidc.middleware.SessionRefresh"]}
 )
 @override_settings(DEBUG=True)
-class LegacyMigrationLinkTests(TestCase):
-    """A link is only offered where the endpoint behind it would actually answer.
-
-    Migration disabled answers 404, and a user without the capability answers 403,
-    so both halves of the gate have to reach the template (#379).
-    """
-
-    def setUp(self):
-        self.instructor = UserFactory(instructor=True, netid="instr4")
-        self.student = UserFactory(student=True, netid="stud4")
-        self.link = reverse("legacy_migration_requests")
-
-    @override_settings(DEBUG=True, LEGACY_MIGRATION_ENABLED=False)
-    def test_the_banner_omits_the_link_when_migration_is_disabled(self):
-        self.client.force_login(self.instructor)
-
-        response = self.client.get(reverse("playlists"))
-
-        self.assertContains(response, "whats-new-banner")
-        self.assertNotContains(response, self.link)
-
-    @override_settings(DEBUG=True, LEGACY_MIGRATION_ENABLED=True)
-    def test_the_banner_offers_the_link_to_an_instructor_when_enabled(self):
-        self.client.force_login(self.instructor)
-
-        response = self.client.get(reverse("playlists"))
-
-        self.assertContains(response, self.link)
-
-    @override_settings(DEBUG=True, LEGACY_MIGRATION_ENABLED=True)
-    def test_whats_new_hides_the_migration_section_from_students(self):
-        self.client.force_login(self.student)
-
-        response = self.client.get(reverse("whats_new"))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, self.link)
-
-    @override_settings(DEBUG=True, LEGACY_MIGRATION_ENABLED=True)
-    def test_whats_new_shows_the_migration_section_to_instructors(self):
-        self.client.force_login(self.instructor)
-
-        response = self.client.get(reverse("whats_new"))
-
-        self.assertContains(response, self.link)
-
-    @override_settings(DEBUG=True, LEGACY_MIGRATION_ENABLED=True)
-    def test_the_sidebar_hides_the_link_from_students(self):
-        self.client.force_login(self.student)
-
-        response = self.client.get(reverse("playlists"))
-
-        self.assertNotContains(response, self.link)
-
-
-@modify_settings(
-    MIDDLEWARE={"remove": ["mozilla_django_oidc.middleware.SessionRefresh"]}
-)
-@override_settings(DEBUG=True)
 class BreadcrumbTests(TestCase):
     def setUp(self):
         self.instructor = UserFactory(instructor=True, netid="instr3")
@@ -253,6 +194,27 @@ class BreadcrumbTests(TestCase):
 
         self.assertContains(response, 'aria-label="Breadcrumb"')
         self.assertContains(response, f'href="{reverse("playlists")}"')
+
+    def assertTrailEndsAt(self, response, label):
+        self.assertContains(response, 'aria-label="Breadcrumb"')
+        self.assertEqual(
+            [(c["label"], c["url"]) for c in response.context["breadcrumbs"]],
+            [("Playlists", reverse("playlists")), (label, None)],
+        )
+
+    def test_intake_form_has_breadcrumbs(self):
+        self.client.force_login(self.instructor)
+
+        response = self.client.get(reverse("request_resource"))
+
+        self.assertTrailEndsAt(response, "Request a resource")
+
+    def test_resource_requests_page_has_breadcrumbs(self):
+        self.client.force_login(UserFactory(lab_assistant=True, netid="labasst5"))
+
+        response = self.client.get(reverse("resource_access_requests"))
+
+        self.assertTrailEndsAt(response, "Resource Requests")
 
 
 @modify_settings(
@@ -335,9 +297,7 @@ class ContentBreadcrumbTests(TestCase):
 
     def test_student_player_trail_skips_details_they_cannot_open(self):
         student = UserFactory(student=True, netid="stud4")
-        UserCourseFactory(
-            user=student, course=self.course, yearterm=self.course.yearterm
-        )
+        UserCourseFactory(user=student, course=self.course)
         self.client.force_login(student)
 
         response = self.client.get(reverse("player", args=[self.content.pk]))
@@ -357,9 +317,7 @@ class ContentBreadcrumbTests(TestCase):
 
     def test_student_visit_counts_as_a_view(self):
         student = UserFactory(student=True, netid="stud5")
-        UserCourseFactory(
-            user=student, course=self.course, yearterm=self.course.yearterm
-        )
+        UserCourseFactory(user=student, course=self.course)
         self.client.force_login(student)
 
         self.client.get(reverse("player", args=[self.content.pk]))

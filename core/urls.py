@@ -1,7 +1,6 @@
 from django.urls import path
 
 from . import views
-from . import views_legacy_migration
 from . import views_video_editor
 
 app_name = "core"
@@ -14,21 +13,6 @@ urlpatterns = [
     path("about/", views.about, name="about"),
     path("whats-new/", views.whats_new, name="whats_new"),
     path("messages/render/", views.render_user_message, name="render_user_message"),
-    path(
-        "legacy-migrations/",
-        views_legacy_migration.legacy_migration_requests,
-        name="legacy_migration_requests",
-    ),
-    path(
-        "legacy-migrations/create/",
-        views_legacy_migration.create_legacy_migration_request,
-        name="create_legacy_migration_request",
-    ),
-    path(
-        "legacy-migrations/<int:pk>/",
-        views_legacy_migration.legacy_migration_request_detail,
-        name="legacy_migration_request_detail",
-    ),
     path("playlists/", views.playlists, name="playlists"),
     path("playlists/create/", views.create_playlist, name="create_playlist"),
     path(

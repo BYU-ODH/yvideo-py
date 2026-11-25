@@ -35,7 +35,7 @@ def item_problems(item):
             "URL/YouTube content needs the network, so it can't be shown in the booth.",
         )
         return problems
-    if not (content.playlist_id and content.playlist.is_ic):
+    if not content.playlist.is_ic:
         add(
             ERROR,
             "not_ic_playlist",

@@ -449,9 +449,7 @@ class EnrolledStudentTests(TestCase):
         self.content.save()
 
         self.student = UserFactory(student=True)
-        UserCourseFactory(
-            user=self.student, course=self.course, yearterm=self.course.yearterm
-        )
+        UserCourseFactory(user=self.student, course=self.course)
         login(self.client, self.student)
 
     def test_an_enrolled_student_can_watch(self):
@@ -522,11 +520,7 @@ class UnpublishedContentTests(TestCase):
         )
 
         self.enrolled_student = UserFactory(student=True)
-        UserCourseFactory(
-            user=self.enrolled_student,
-            course=self.course,
-            yearterm=self.course.yearterm,
-        )
+        UserCourseFactory(user=self.enrolled_student, course=self.course)
         self.granted_student = UserFactory(student=True)
         PlaylistUserAccessFactory(
             user=self.granted_student,

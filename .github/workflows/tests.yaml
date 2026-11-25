@@ -2,11 +2,25 @@ name: Tests
 
 on:
   push:
-    branches: [main, prod]
+    branches: [main]
   pull_request:
-    branches: [main, prod]
+    branches: [main]
 
 jobs:
+  # Temporary until the Dec 18 prod release, when the merge workflow's workflow_run trigger is removed.
+  merge-into-prod-flag:
+    name: "THIS WILL ALSO MERGE INTO `prod`!!!"
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+
+    # Fails once the workflow_run trigger is gone, as a reminder to delete this job.
+    - name: Check that main still auto-merges into prod
+      run: |
+        grep -q '^  workflow_run:' .github/workflows/MERGE_main_INTO_prod.yaml
+        echo "::warning::Once tests pass on main, merging this PR will also merge main into prod."
+
   pre-commit:
     runs-on: ubuntu-latest
     steps:
