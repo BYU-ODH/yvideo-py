@@ -1350,9 +1350,6 @@ button:hover {
     border-radius: 0rem;
 }
 
-.assignment-search-wrapper {
-}
-
 .assignment-search-results {
     display: flex;
     flex-direction: column;
