@@ -970,6 +970,7 @@ def test_find_replace_interface_has_no_a11y_violations(
         resource=demo_content.resource,
         owner=demo_content.playlist.owner,
     )
+    demo_content.subtitle_tracks.add(subtitle_track)
     open_editor()
     page.locator("#annotation-panel-switch").click()
     page.select_option("#subtitles-track-selector", str(subtitle_track.pk))
@@ -1183,9 +1184,9 @@ AUDITED_TEMPLATES = {
     "core/partials/modals/playlist_member_remove.html",
     "core/partials/modals/playlist_members.html",
     "core/partials/modals/create_subtitle_track.html",
-    "core/partials/modals/delete_subtitle_track.html",
+    "core/partials/modals/add_subtitle_track.html",
     "core/partials/modals/edit_subtitle_track.html",
-    "core/partials/modals/select_subtitle_track.html",
+    "core/partials/modals/delete_subtitle_track.html",
     "core/partials/playlist_member_options_for_select.html",
     "core/partials/playlist_members_list.html",
     "core/partials/playlist_members_roster.html",
@@ -1217,6 +1218,7 @@ AUDITED_TEMPLATES = {
     "core/partials/subtitle_cues.html",
     "core/partials/subtitle_editor_panel.html",
     "core/partials/subtitle_panel_content.html",
+    "core/partials/subtitle_track_option_label.html",
     "core/partials/timeline-track-row.html",
     "core/partials/timeline_base.html",
     # django admin

@@ -184,17 +184,8 @@ def video_editor(request, content):
         file_key = request.user.get_resource_filekey(content)
 
         resource = content.resource
-        subtitle_options = content.get_subtitles()
-        editable_subtitle_options = []
-        for sub in subtitle_options:
-            try:
-                sub_obj = Subtitle.objects.get(pk=sub["id"])
-            except Exception:
-                continue
-            if sub_obj.can_be_edited_by(request.user):
-                editable_subtitle_options.append(sub)
+        subtitle_track_choices = subtitle_track_choices_for(content, request.user)
         subtitle_panel = {
-            "subtitle_track_selection_modal_id": "subtitle-track-selection-modal",
             "subtitle_track_creation_modal_id": "subtitle-track-creation-modal",
         }
 
@@ -253,8 +244,12 @@ def video_editor(request, content):
             else [],
             "annotation_groups": annotation_groups,
             "tracks": tracks,
-            "subtitle_options": subtitle_options,
-            "editable_subtitle_options": editable_subtitle_options,
+            "attached_subtitle_tracks": [
+                choice for choice in subtitle_track_choices if choice["attached"]
+            ],
+            "unattached_subtitle_tracks": [
+                choice for choice in subtitle_track_choices if not choice["attached"]
+            ],
             "subtitle_panel": subtitle_panel,
             "create_form": SubtitleCreateForm(resource=resource, owner=request.user),
             "copy_form": SubtitleCopyForm(resource=resource, owner=request.user),
@@ -282,6 +277,31 @@ def annotation_set_choices(content, user):
             "created_at": annotation_set.created_at,
         }
         for annotation_set in content.get_available_annotation_sets(user)
+    ]
+
+
+def subtitle_track_choices_for(content, user):
+    """Every subtitle track on the resource `user` may read, marked like annotation_set_choices().
+
+    Tracks the user cannot edit are included because using someone else's track is
+    how sharing works.
+    """
+    resource = content.resource
+    if not resource:
+        return []
+    attached_ids = set(content.subtitle_tracks.values_list("pk", flat=True))
+    return [
+        {
+            "subtitle": subtitle,
+            "attached": subtitle.pk in attached_ids,
+            "can_edit": subtitle.can_be_edited_by(user),
+            "can_delete": subtitle.can_be_administered_by(user),
+            "owner_label": subtitle.owner_label(),
+        }
+        for subtitle in Subtitle.objects.filter(resource=resource)
+        .select_related("language", "owner")
+        .order_by("name")
+        if subtitle.can_be_read_by(user)
     ]
 
 
@@ -1493,6 +1513,7 @@ def create_subtitle_track(request, content):
                 created_files,
             )
             subtitle.save(using=database, force_insert=True)
+            content.subtitle_tracks.add(subtitle)
     except Exception as exception:
         cleanup_subtitle_files(created_files, using=database)
         if isinstance(exception, IntegrityError):
@@ -1521,14 +1542,11 @@ def _render_subtitle_track_edit_modal(request, subtitle, *, form=None, status=20
             subtitle=subtitle,
             initial={"name": subtitle.name, "language": subtitle.language_id},
         )
-    owner = subtitle.owner
     context = {
         "dialog_id": "edit-subtitle-track-modal",
         "subtitle_track": subtitle,
         "form": form,
         "can_edit": subtitle.can_be_edited_by(request.user),
-        "owner_display_name": owner.get_full_name().strip() or owner.username,
-        "owner_email": owner.email,
     }
     requested_content_id = request.GET.get("content_id")
     if requested_content_id:
@@ -1611,10 +1629,14 @@ def update_subtitle(request, subtitle):
 @content_write_required
 def copy_subtitle_track(request, content, subtitle_id):
     source = get_object_or_404(Subtitle, pk=subtitle_id)
-    return _process_subtitle_track_copy(request, content, source)
+    # Copying from the edit modal is how a borrower makes the track their own, so the
+    # copy takes the original's place on this video.
+    return _process_subtitle_track_copy(request, content, source, replace=True)
 
 
-def _process_subtitle_track_copy(request, content, source, *, copy_form=None):
+def _process_subtitle_track_copy(
+    request, content, source, *, copy_form=None, replace=False
+):
     resource = content.resource
     if resource is None or source.resource_id != resource.pk:
         return forbidden("The subtitle track must belong to this content's resource.")
@@ -1703,6 +1725,10 @@ def _process_subtitle_track_copy(request, content, source, *, copy_form=None):
                         copy_number += 1
                     else:
                         break
+            if replace:
+                content.replace_subtitle_track(source, copied)
+            else:
+                content.subtitle_tracks.add(copied)
     except ValidationError as exception:
         cleanup_subtitle_files(created_files, using=database)
         return JsonResponse({"error": " ".join(exception.messages)}, status=400)
@@ -1961,15 +1987,71 @@ def update_subtitle_content(request, subtitle):
             cleanup_subtitle_files(created_files, using=database)
 
 
+@require_GET
+@subtitle_write_required
+def delete_subtitle_track_dialog(request, subtitle):
+    """The delete dialog's contents, which depend on who else uses the track."""
+    if not subtitle.can_be_administered_by(request.user):
+        return forbidden("Only the owner or an admin can delete a subtitle track.")
+    return render(
+        request,
+        "core/partials/modals/delete_subtitle_track.html",
+        {
+            "dialog_id": "delete-subtitle-track-modal",
+            "subtitle_track": subtitle,
+            "owner_candidates": subtitle.ownership_candidates(subtitle.owner),
+        },
+    )
+
+
 @require_http_methods(["DELETE"])
 @subtitle_write_required
 def delete_subtitle(request, subtitle):
-    subtitle_id = subtitle.pk
+    """Deletes the track, or transfers ownership if another user's video uses it."""
+    if not subtitle.can_be_administered_by(request.user):
+        return forbidden("Only the owner or an admin can delete a subtitle track.")
     try:
-        subtitle.delete()
-        return HttpResponse("", status=200)
-    except Exception as e:
-        logger.error(
-            f"Error while deleting subtitle object with id: {subtitle_id}. Exception: {e}"
+        body = json.loads(request.body) if request.body else {}
+        if not isinstance(body, dict):
+            return HttpResponseBadRequest("Expected a JSON object.")
+        new_owner_id = body.get("new_owner_id")
+        new_owner = (
+            User.objects.get(pk=new_owner_id) if new_owner_id is not None else None
         )
-        return HttpResponseServerError()
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError, TypeError):
+        return HttpResponseBadRequest("The request was malformed.")
+    except User.DoesNotExist:
+        return HttpResponseBadRequest("The chosen new owner doesn't exist.")
+
+    result = subtitle.delete_or_reassign_ownership(request.user, new_owner=new_owner)
+    if result["deleted"]:
+        messages.success(request, f'The subtitle track "{subtitle.name}" was deleted.')
+    else:
+        messages.success(
+            request,
+            f'The subtitle track "{subtitle.name}" was transferred to '
+            f"{subtitle.owner_label()} and removed from the previous owner's videos.",
+        )
+    return HttpResponse()
+
+
+@require_POST
+@content_write_required
+def attach_subtitle_track(request, content, subtitle_id):
+    subtitle = get_object_or_404(Subtitle, pk=subtitle_id)
+    resource = content.resource
+    if resource is None or subtitle.resource_id != resource.pk:
+        return forbidden("The subtitle track must belong to this content's resource.")
+    # Read access is enough to use a track, which is what makes sharing work.
+    if not subtitle.can_be_read_by(request.user):
+        return forbidden()
+    content.subtitle_tracks.add(subtitle)
+    return JsonResponse({"id": subtitle.pk})
+
+
+@require_POST
+@content_write_required
+def detach_subtitle_track(request, content, subtitle_id):
+    subtitle = get_object_or_404(Subtitle, pk=subtitle_id)
+    content.remove_subtitle_track(subtitle)
+    return HttpResponse()

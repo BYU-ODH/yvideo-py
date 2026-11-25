@@ -199,7 +199,7 @@ class SubtitleCreateForm(SubtitleUpdateForm):
 
 class _SubtitleCopySourceChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, obj):
-        return f"{obj.name} ({obj.language.bcp47})"
+        return f"{obj.name} ({obj.language.bcp47}) — {obj.owner_label()}"
 
 
 class SubtitleCopyForm(forms.Form):
@@ -222,7 +222,7 @@ class SubtitleCopyForm(forms.Form):
             self.fields["source_id"].queryset = (
                 Subtitle.objects.using(resource._state.db)
                 .filter(resource=resource)
-                .select_related("language", "resource")
+                .select_related("language", "resource", "owner")
             )
         if source is not None:
             self.initial["source_id"] = source.pk

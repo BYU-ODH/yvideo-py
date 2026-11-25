@@ -84,7 +84,6 @@ export class Editor {
         this.historyRequestInFlight = false;
         this.saveItemForm = null;
         this.selectedSubtitleTrackId = null;
-        this.selectedSubtitleTrackText = null;
         this.subtitleTrackEditBusy = false;
         this.subtitleCueSaves = new Set();
         // The cues as last sent to (or rendered by) the server; see setupSubtitleEditor input watcher
@@ -171,6 +170,8 @@ export class Editor {
         this.watchForSubtitleTrackCreation();
 
         this.watchForSubtitleTrackEditing();
+        this.watchForSubtitleTrackAdding();
+        this.watchForSubtitleTrackRemoval();
         this.watchForSubtitleTrackDeletion();
         this.checkForAndLoadSubtitleTrack();
         this.handleNoAnnotationSet();
@@ -3272,17 +3273,16 @@ export class Editor {
         }
         const subtitlesPanelContentHTML = await subtitlesResponse.text();
         document.getElementById("subtitle-panel-content").outerHTML = subtitlesPanelContentHTML;
+        const option = document.querySelector(`.subtitles-track-option[value="${trackId}"]`);
         this.selectedSubtitleTrackId = trackId;
         this.sentCueState = JSON.stringify(this.collectCues());
         saveStatus.settle("subtitle-cues");
-        this.selectedSubtitleTrackText = document.querySelector(
-          `.subtitles-track-option[value="${trackId}"]`
-        )?.textContent.trim() || "";
         document.getElementById(`cap-track-${trackId}-button`)?.click();
         document.getElementById("open-subtitle-track-edit-modal").disabled = false;
         document.getElementById("export-subtitle-track-button").disabled = false;
+        document.getElementById("remove-subtitle-track-button").disabled = false;
         document.getElementById("open-delete-subtitle-track-modal").disabled =
-          document.getElementById("subtitle-panel-content").dataset.canEdit !== "true";
+          option?.dataset.canDelete !== "true";
         return true;
       } catch {
         displayUserMessage("error", "Failed to load subtitle track");
@@ -3464,39 +3464,113 @@ export class Editor {
       }
     }
 
+    async postAndReloadWithSubtitleTrack(url, trackId, failureMessage) {
+      try {
+        await Promise.allSettled(this.subtitleCueSaves);
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "X-CSRFToken": getCSRFToken() }
+        });
+        if (!response.ok) {
+          displayUserMessage("error", failureMessage);
+          return;
+        }
+        const reloadUrl = new URL(window.location.href);
+        if (trackId) {
+          reloadUrl.searchParams.set("subtitle_track", trackId);
+        } else {
+          reloadUrl.searchParams.delete("subtitle_track");
+        }
+        window.location.assign(reloadUrl.href);
+      } catch {
+        displayUserMessage("error", failureMessage);
+      }
+    }
+
+    watchForSubtitleTrackAdding() {
+      const form = document.getElementById("add-subtitle-track-form");
+      if (!form) return;
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const button = document.getElementById("add-subtitle-track-button");
+        const option = document.getElementById("add-subtitle-track-selector").selectedOptions[0];
+        if (!option?.value || button.disabled) return;
+        button.disabled = true;
+        await this.postAndReloadWithSubtitleTrack(option.dataset.attachUrl, option.value, "Failed to add the subtitle track.");
+        button.disabled = false;
+      });
+    }
+
+    watchForSubtitleTrackRemoval() {
+      const button = document.getElementById("remove-subtitle-track-button");
+      if (!button) return;
+
+      button.addEventListener("click", async () => {
+        const trackId = this.selectedSubtitleTrackId;
+        if (!trackId || button.disabled) return;
+        button.disabled = true;
+        await this.postAndReloadWithSubtitleTrack(
+          `/content/${this.contentId}/subtitles/${trackId}/detach/`,
+          null,
+          "Failed to remove the subtitle track from this video."
+        );
+        button.disabled = false;
+      });
+    }
+
     watchForSubtitleTrackDeletion() {
       const openButton = document.getElementById("open-delete-subtitle-track-modal");
-      const deleteButton = document.getElementById("delete-subtitle-track-confirm");
-      if (!openButton || !deleteButton) {
-        displayUserMessage("warning", "Unable to setup subtitle track deletion modal. You will not be able to delete subtitle tracks until this is resolved.");
-        return;
-      }
+      const dialog = document.getElementById("delete-subtitle-track-modal");
+      if (!openButton || !dialog) return;
+      const content = document.getElementById("delete-subtitle-track-content");
 
-      openButton.addEventListener("click", () => {
-        if (!this.selectedSubtitleTrackId) return;
-        document.getElementById("delete-subtitle-track-text").textContent = this.selectedSubtitleTrackText;
+      openButton.addEventListener("click", async () => {
+        const trackId = this.selectedSubtitleTrackId;
+        if (!trackId) return;
+        content.replaceChildren();
+        content.setAttribute("aria-busy", "true");
+        try {
+          const response = await fetch(`/subtitles/${trackId}/delete-dialog/`);
+          if (!response.ok) {
+            displayUserMessage("error", "Failed to load the delete options for this subtitle track.");
+            return;
+          }
+          const html = new DOMParser().parseFromString(await response.text(), "text/html");
+          content.innerHTML = html.getElementById("delete-subtitle-track-content").innerHTML;
+        } catch {
+          displayUserMessage("error", "Failed to load the delete options for this subtitle track.");
+        } finally {
+          content.removeAttribute("aria-busy");
+        }
       });
 
-      deleteButton.addEventListener("click", async () => {
+      dialog.addEventListener("click", async (event) => {
+        const confirmButton = event.target.closest("#delete-subtitle-track-confirm");
         const trackId = this.selectedSubtitleTrackId;
-        if (!trackId || deleteButton.disabled) return;
-        deleteButton.disabled = true;
+        if (!confirmButton || !trackId || confirmButton.disabled) return;
+        confirmButton.disabled = true;
+        const newOwnerId = document.getElementById("subtitle-track-new-owner")?.value;
         try {
+          await Promise.allSettled(this.subtitleCueSaves);
           const response = await fetch(`/subtitles/${trackId}/delete/`, {
             method: "DELETE",
-            headers: { "X-CSRFToken": getCSRFToken() }
+            headers: { "X-CSRFToken": getCSRFToken(), "Content-Type": "application/json" },
+            body: JSON.stringify(newOwnerId ? { new_owner_id: Number(newOwnerId) } : {})
           });
           if (!response.ok) {
             response.status === 403
-              ? displayUserMessage("info", "You do not have permission to delete this subtitle track.")
+              ? displayUserMessage("info", "Only the owner of a subtitle track can delete it.")
               : displayUserMessage("error", "Failed to delete the subtitle track.");
             return;
           }
-          window.location.reload();
+          const reloadUrl = new URL(window.location.href);
+          reloadUrl.searchParams.delete("subtitle_track");
+          window.location.assign(reloadUrl.href);
         } catch {
-          displayUserMessage("error", "Failed to delete subtitle track.");
+          displayUserMessage("error", "Failed to delete the subtitle track.");
         } finally {
-          deleteButton.disabled = false;
+          confirmButton.disabled = false;
         }
       });
     }

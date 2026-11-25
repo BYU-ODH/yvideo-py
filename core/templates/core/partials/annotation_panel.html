@@ -21,6 +21,9 @@
                     </button>
                 {% endif %}
             </div>
+            {% if annotation_set %}
+                <span id="annotation-set-owner">Owner: {{ annotation_set.owner_label }}</span>
+            {% endif %}
             {% if can_edit %}
                 {% include "core/partials/save_status.html" with status_id="annotation-save-status" %}
             {% endif %}

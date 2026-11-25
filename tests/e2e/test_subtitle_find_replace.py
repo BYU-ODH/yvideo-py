@@ -27,7 +27,7 @@ def subtitle_track(demo_content):
         f"00:00:0{index * 2}.125 --> 00:00:0{index * 2 + 1}.875\n{text}"
         for index, text in enumerate(CUE_TEXTS)
     ]
-    return SubtitleFactory(
+    track = SubtitleFactory(
         resource=demo_content.resource,
         owner=demo_content.playlist.owner,
         subtitles_file=SimpleUploadedFile(
@@ -36,6 +36,8 @@ def subtitle_track(demo_content):
             content_type="text/vtt",
         ),
     )
+    demo_content.subtitle_tracks.add(track)
+    return track
 
 
 def _select_track(page, track):
@@ -356,6 +358,7 @@ def test_composed_search_matches_decomposed_cue_text(page, open_editor, demo_con
             content_type="text/vtt",
         ),
     )
+    demo_content.subtitle_tracks.add(track)
     open_editor()
     page.locator("#annotation-panel-switch").click()
     page.select_option("#subtitles-track-selector", str(track.pk))

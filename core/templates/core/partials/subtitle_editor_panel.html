@@ -10,7 +10,7 @@
         <div class="column-flex">
             <div class="row-flex flex-apart-aligned">
                 {# Only label the selector when it exists; a label pointing at a missing id is orphaned. #}
-                {% if editable_subtitle_options %}
+                {% if attached_subtitle_tracks %}
                     <label for="subtitles-track-selector">Subtitle track</label>
                 {% else %}
                     <span>Subtitle track</span>
@@ -31,12 +31,21 @@
                                 commandfor="{{ subtitle_panel.subtitle_track_creation_modal_id }}">
                             Create new subtitle track
                         </button>
+                        <button id="open-add-subtitle-track-modal"
+                                type="button"
+                                class="multi-option-menu-button"
+                                command="show-modal"
+                                commandfor="add-subtitle-track-modal">Add existing subtitle track</button>
                         <button id="open-subtitle-track-edit-modal"
                                 type="button"
                                 class="multi-option-menu-button"
                                 command="show-modal"
                                 commandfor="edit-subtitle-track-modal"
                                 disabled>Edit subtitle track</button>
+                        <button id="remove-subtitle-track-button"
+                                type="button"
+                                class="multi-option-menu-button"
+                                disabled>Remove from this video</button>
                         <button id="open-delete-subtitle-track-modal"
                                 type="button"
                                 class="multi-option-menu-button"
@@ -50,18 +59,25 @@
                     </div>
                 </div>
                 {% include 'core/partials/modals/create_subtitle_track.html' with dialog_id=subtitle_panel.subtitle_track_creation_modal_id %}
+                {% include 'core/partials/modals/add_subtitle_track.html' with dialog_id="add-subtitle-track-modal" %}
                 {% include 'core/partials/modals/edit_subtitle_track.html' with dialog_id="edit-subtitle-track-modal" %}
                 {% include 'core/partials/modals/delete_subtitle_track.html' with dialog_id="delete-subtitle-track-modal" %}
             </div>
-            {% if editable_subtitle_options %}
+            {% if attached_subtitle_tracks %}
                 <select id="subtitles-track-selector">
                     <option value="" disabled selected>Select a subtitle track</option>
-                    {% for option in editable_subtitle_options %}
-                        <option class="subtitles-track-option" value="{{ option.id }}">{{ option.name }} ({{ option.srclang }})</option>
+                    {% for choice in attached_subtitle_tracks %}
+                        <option class="subtitles-track-option"
+                                value="{{ choice.subtitle.pk }}"
+                                data-can-delete="{{ choice.can_delete|yesno:'true,false' }}">
+                            {% include "core/partials/subtitle_track_option_label.html" %}
+                        </option>
                     {% endfor %}
                 </select>
             {% else %}
-                <p>Either you do not have access to any subtitle tracks or none exist. You may want to create a new one.</p>
+                <p id="select-sub-track-none-found-message">
+                    This video has no subtitle tracks yet. Create a new one or add an existing one.
+                </p>
             {% endif %}
         </div>
     </div>

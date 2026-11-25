@@ -469,6 +469,11 @@
     min-width: 0;
 }
 
+#annotation-set-owner, #subtitle-panel-content .subtitle-track-owner {
+    font-size: 0.8rem;
+    color: var(--dark-mode-text-color-dimmed);
+}
+
 .save-status {
     column-gap: 0.3rem;
     align-items: center;
@@ -918,11 +923,6 @@ here in this comment for search purposes */
     border-color: #4a90e2;
     outline: none;
     box-shadow: 0 0 0 3px rgb(74 144 226 / 10%);
-}
-
-#delete-subtitles-track-button {
-    align-self: flex-end;
-    margin-top: 5rem;
 }
 
 #editor-annotation-panel, #subtitle-editor-panel, #video-section, .detail-form-section, #timeline-wrapper {

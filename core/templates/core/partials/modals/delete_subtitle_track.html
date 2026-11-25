@@ -2,12 +2,51 @@
 
 {% block modal_title %}Delete subtitle track{% endblock %}
 {% block modal_body %}
-    <p>Delete the "<span id="delete-subtitle-track-text"></span>" subtitle track?</p>
-    <div class="row-flex flex-apart-aligned">
-        <button id="delete-subtitle-track-confirm" type="button" class="red-button">Delete subtitle track</button>
-        <button type="button"
-                class="cancel-button"
-                command="close"
-                commandfor="{{ dialog_id }}">Cancel</button>
+    {# Filled in for the selected track by the delete_subtitle_track_dialog view. #}
+    <div id="delete-subtitle-track-content" class="column-flex">
+        {% if subtitle_track %}
+            {% if owner_candidates|length > 1 %}
+                <p>
+                    Other users have added "{{ subtitle_track.name }}" to their videos. You may choose
+                    who becomes its new owner.
+                </p>
+                <label for="subtitle-track-new-owner">Transfer ownership to (optional):</label>
+                <select id="subtitle-track-new-owner">
+                    <option value="">Choose automatically</option>
+                    {% for candidate in owner_candidates %}
+                        <option value="{{ candidate.pk }}">
+                            {{ candidate.get_full_name|default:candidate.username }} ({{ candidate.username }})
+                        </option>
+                    {% endfor %}
+                </select>
+            {% elif owner_candidates %}
+                {% with candidate=owner_candidates|first %}
+                    <p>
+                        Another user has added "{{ subtitle_track.name }}" to their videos, so
+                        {{ candidate.get_full_name|default:candidate.username }} ({{ candidate.username }})
+                        will become its new owner.
+                    </p>
+                {% endwith %}
+            {% else %}
+                <p>
+                    "{{ subtitle_track.name }}" will be deleted and can't be recovered. This won't
+                    affect anyone else because only your videos use it.
+                </p>
+            {% endif %}
+            <p>Afterwards, none of the owner's videos will use this track.</p>
+            <div class="row-flex flex-apart-aligned">
+                <button id="delete-subtitle-track-confirm" type="button" class="red-button">
+                    {% if owner_candidates %}
+                        Transfer and remove from my videos
+                    {% else %}
+                        Delete subtitle track
+                    {% endif %}
+                </button>
+                <button type="button"
+                        class="cancel-button"
+                        command="close"
+                        commandfor="{{ dialog_id }}">Cancel</button>
+            </div>
+        {% endif %}
     </div>
 {% endblock %}

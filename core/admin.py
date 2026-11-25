@@ -956,6 +956,7 @@ class ContentAdmin(AutocompleteTargetAdmin):
         "resource",
         "annotation_set",
         "default_subtitle_track",
+        "subtitle_tracks",
     )
 
     def get_form(self, request, obj=None, **kwargs):
@@ -1059,7 +1060,7 @@ class SubtitleAdmin(AutocompleteTargetAdmin):
     label_related = ("language", "resource", "owner")
     form = SubtitleAdminForm
 
-    list_display = ("name", "language", "owner", "resource", "created_at")
+    list_display = ("name", "language", "owner_label", "resource", "created_at")
     list_filter = ("language", "created_at")
     search_fields = (
         "name",

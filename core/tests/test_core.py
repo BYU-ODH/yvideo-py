@@ -900,7 +900,9 @@ class ContentAllowCaptionsViewTests(TestCase):
         self.owner = UserFactory(instructor=True)
         self.playlist = PlaylistFactory(owner=self.owner, published=True)
         self.resource_file = ResourceFileFactory()
-        SubtitleFactory(resource=self.resource_file.resource, owner=self.owner)
+        self.subtitle = SubtitleFactory(
+            resource=self.resource_file.resource, owner=self.owner
+        )
         self.student = UserFactory(student=True)
         PlaylistUserAccessFactory(
             user=self.student,
@@ -915,6 +917,7 @@ class ContentAllowCaptionsViewTests(TestCase):
             published=True,
             allow_captions=allow_captions,
         )
+        content.subtitle_tracks.add(self.subtitle)
         self.client.force_login(user)
         response = self.client.post(reverse("get_player_data", args=[content.pk]))
         self.assertEqual(response.status_code, 200)
@@ -1041,6 +1044,7 @@ class DefaultSubtitleTrackTests(TestCase):
         )
         self.subtitle_en = SubtitleFactory(resource=self.resource, owner=self.owner)
         self.subtitle_es = SubtitleFactory(resource=self.resource, owner=self.owner)
+        self.content.subtitle_tracks.add(self.subtitle_en, self.subtitle_es)
 
     def test_default_subtitle_track_is_null_by_default(self):
         content = Content.objects.get(pk=self.content.pk)
@@ -1101,7 +1105,9 @@ class GetSubtitlesSrclangTests(TestCase):
 
     def test_srclang_is_the_two_letter_code_for_a_major_language(self):
         english = LanguageFactory(bcp47="en")
-        SubtitleFactory(resource=self.resource, owner=self.owner, language=english)
+        self.content.subtitle_tracks.add(
+            SubtitleFactory(resource=self.resource, owner=self.owner, language=english)
+        )
 
         subtitles = self.content.get_subtitles()
 
@@ -1110,7 +1116,9 @@ class GetSubtitlesSrclangTests(TestCase):
 
     def test_srclang_is_the_three_letter_code_with_no_iso_639_1_code(self):
         asl = LanguageFactory(bcp47="ase")
-        SubtitleFactory(resource=self.resource, owner=self.owner, language=asl)
+        self.content.subtitle_tracks.add(
+            SubtitleFactory(resource=self.resource, owner=self.owner, language=asl)
+        )
 
         subtitles = self.content.get_subtitles()
 
@@ -1130,6 +1138,7 @@ class UpdateContentDefaultSubtitleTrackTests(TestCase):
             resource_file=self.resource_file,
         )
         self.subtitle = SubtitleFactory(resource=self.resource, owner=self.owner)
+        self.content.subtitle_tracks.add(self.subtitle)
         self.client.force_login(self.owner)
 
     def _post_update_content(self, **field_overrides):
@@ -1172,15 +1181,10 @@ class UpdateContentDefaultSubtitleTrackTests(TestCase):
         content = Content.objects.get(pk=self.content.pk)
         self.assertIsNone(content.default_subtitle_track_id)
 
-    def test_subtitle_from_a_different_resource_is_not_saved_as_default(self):
-        other_resource = ResourceFactory()
-        subtitle_from_other_resource = SubtitleFactory(
-            resource=other_resource, owner=self.owner
-        )
+    def test_a_track_not_added_to_this_video_is_not_saved_as_default(self):
+        unattached = SubtitleFactory(resource=self.resource, owner=self.owner)
 
-        response = self._post_update_content(
-            default_subtitle_track_id=subtitle_from_other_resource.pk
-        )
+        response = self._post_update_content(default_subtitle_track_id=unattached.pk)
 
         self.assertEqual(response.status_code, 200)
         content = Content.objects.get(pk=self.content.pk)

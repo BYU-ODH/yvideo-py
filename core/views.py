@@ -54,7 +54,6 @@ from .models import ResourceAccessRequest
 from .models import ResourceFile
 from .models import ResourceFileKey
 from .models import ResourceIntakeRequest
-from .models import Subtitle
 from .models import Thumbnail
 from .models import User
 from .models import UserCourses
@@ -1364,9 +1363,8 @@ def update_content(request, content):
 
         default_subtitle_id = data.get("default_subtitle_track_id")
         if default_subtitle_id:
-            resource = content.resource
-            content.default_subtitle_track = Subtitle.objects.filter(
-                pk=default_subtitle_id, resource=resource
+            content.default_subtitle_track = content.subtitle_tracks.filter(
+                pk=default_subtitle_id
             ).first()
         else:
             content.default_subtitle_track = None
