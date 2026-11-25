@@ -1,10 +1,8 @@
-"""The Manage People endpoints (#361).
+"""Playlist assignment endpoints and their permission boundaries.
 
-The rule under test throughout is Playlist.can_grant_role: an owner hands out any role,
-a collaborator hands out only read-only ones. The cases that matter are the ones
-where a collaborator reaches past that -- promoting, demoting, or removing someone at their own
-level -- because the decorator alone lets them through and only the inner check stops
-them.
+Student and collaborator assignments use separate endpoints. Owners may grant either
+role; collaborators may manage only students and cannot overwrite existing memberships
+through the student-assignment endpoint.
 
 `login` rather than force_login, for the SessionRefresh reason spelled out in
 test_permissions_regressions.py.
@@ -54,8 +52,8 @@ class PlaylistMemberTestCase(TestCase):
     def add_url(self):
         return reverse("add_playlist_member", args=[self.playlist.pk])
 
-    def role_url(self, user):
-        return reverse("update_playlist_member_role", args=[self.playlist.pk, user.pk])
+    def collaborator_add_url(self):
+        return reverse("add_playlist_collaborator", args=[self.playlist.pk])
 
     def remove_url(self, user):
         return reverse("remove_playlist_member", args=[self.playlist.pk, user.pk])
@@ -108,38 +106,51 @@ class OwnerManagesEveryoneTests(PlaylistMemberTestCase):
         super().setUp()
         login(self.client, self.owner)
 
-    def test_the_owner_may_grant_every_offered_role(self):
-        for role in (PlaylistRole.COLLABORATOR, PlaylistRole.STUDENT):
+    def test_the_owner_may_grant_each_role_through_its_assignment_endpoint(self):
+        for url, role in (
+            (self.collaborator_add_url(), PlaylistRole.COLLABORATOR),
+            (self.add_url(), PlaylistRole.STUDENT),
+        ):
             with self.subTest(role=role):
                 newcomer = UserFactory(student=True)
-                response = self.client.post(
-                    self.add_url(), {"user_id": newcomer.pk, "role": role.value}
-                )
+                response = self.client.post(url, {"user_id": newcomer.pk})
                 self.assertEqual(response.status_code, 200, response.content[:200])
-                self.assertEqual(response.json(), {"success": True})
+                self.assertEqual(response.content, b"")
                 self.assertEqual(self.role_of(newcomer), role)
 
     def test_the_owner_can_read_an_individuals_current_role(self):
-        response = self.client.get(self.role_url(self.student))
-
-        self.assertContains(response, self.student.get_full_name())
-        self.assertContains(
-            response, '<option value="2" selected>Student</option>', html=True
+        response = self.client.get(
+            reverse("render_playlist_members", args=[self.playlist.pk])
         )
+
+        self.assertEqual(response.status_code, 200)
+        member = next(
+            member
+            for member in response.context["members"]
+            if member["user"] == self.student
+        )
+        self.assertEqual(member["role"], PlaylistRole.STUDENT)
         self.assertEqual(self.role_of(self.student), PlaylistRole.STUDENT)
 
     def test_the_owner_may_promote_a_student_to_collaborator(self):
         response = self.client.post(
-            self.role_url(self.student), {"role": PlaylistRole.COLLABORATOR.value}
+            self.collaborator_add_url(), {"user_id": self.student.pk}
         )
-        self.assertContains(response, "is now Collaborator.")
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(self.role_of(self.student), PlaylistRole.COLLABORATOR)
 
-    def test_the_owner_may_demote_a_collaborator(self):
-        response = self.client.post(
-            self.role_url(self.collaborator), {"role": PlaylistRole.STUDENT.value}
+    def test_the_owner_may_reassign_a_collaborator_as_a_student(self):
+        removal = self.client.post(self.remove_url(self.collaborator))
+        self.assertEqual(removal.status_code, 200)
+        self.assertFalse(
+            PlaylistUserAccess.objects.filter(
+                playlist=self.playlist, user=self.collaborator
+            ).exists()
         )
-        self.assertContains(response, "is now Student.")
+
+        response = self.client.post(self.add_url(), {"user_id": self.collaborator.pk})
+
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(self.role_of(self.collaborator), PlaylistRole.STUDENT)
 
     def test_the_owner_may_remove_a_collaborator(self):
@@ -190,28 +201,26 @@ class OwnerManagesEveryoneTests(PlaylistMemberTestCase):
         listed = [member["user"].pk for member in response.context["members"]]
         self.assertNotIn(self.owner.pk, listed)
 
-    def test_the_owners_own_access_row_cannot_be_edited_as_a_membership(self):
+    def test_the_owners_own_access_row_cannot_be_removed_as_a_membership(self):
         PlaylistUserAccessFactory(
             user=self.owner,
             playlist=self.playlist,
             playlist_role=PlaylistRole.COLLABORATOR,
         )
-        response = self.client.post(
-            self.role_url(self.owner), {"role": PlaylistRole.STUDENT.value}
-        )
+        response = self.client.post(self.remove_url(self.owner))
         self.assertEqual(response.status_code, 404)
         self.assertEqual(self.role_of(self.owner), PlaylistRole.COLLABORATOR)
 
-    def test_a_role_outside_the_offered_set_is_refused(self):
-        response = self.client.post(
-            self.add_url(), {"user_id": self.outsider.pk, "role": 3}
-        )
-        self.assertEqual(response.status_code, 400)
-        self.assertFalse(
-            PlaylistUserAccess.objects.filter(
-                user=self.outsider, playlist=self.playlist
-            ).exists()
-        )
+    def test_the_individual_endpoint_always_assigns_the_student_role(self):
+        for role in (3, PlaylistRole.COLLABORATOR.value):
+            with self.subTest(role=role):
+                newcomer = UserFactory(student=True)
+                response = self.client.post(
+                    self.add_url(), {"user_id": newcomer.pk, "role": role}
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(self.role_of(newcomer), PlaylistRole.STUDENT)
 
 
 class CollaboratorIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
@@ -246,15 +255,9 @@ class CollaboratorIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
 
     def test_a_collaborator_may_not_grant_the_collaborator_role(self):
         response = self.client.post(
-            self.add_url(),
-            {"user_id": self.outsider.pk, "role": PlaylistRole.COLLABORATOR.value},
+            self.collaborator_add_url(), {"user_id": self.outsider.pk}
         )
-        self.assertEqual(response.status_code, 400)
-        self.assertFormError(
-            response.context["assign_individual_form"],
-            "role",
-            "Select a valid choice. 0 is not one of the available choices.",
-        )
+        self.assertEqual(response.status_code, 403)
         self.assertFalse(
             PlaylistUserAccess.objects.filter(
                 user=self.outsider, playlist=self.playlist
@@ -263,22 +266,22 @@ class CollaboratorIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
 
     def test_a_collaborator_may_not_promote_a_student(self):
         response = self.client.post(
-            self.role_url(self.student), {"role": PlaylistRole.COLLABORATOR.value}
+            self.collaborator_add_url(), {"user_id": self.student.pk}
         )
-        self.assertEqual(response.status_code, 400)
-        self.assertFormError(
-            response.context["edit_individual_form"],
-            "role",
-            "Select a valid choice. 0 is not one of the available choices.",
-        )
+        self.assertEqual(response.status_code, 403)
         self.assertEqual(self.role_of(self.student), PlaylistRole.STUDENT)
 
     def test_a_collaborator_may_not_demote_another_collaborator(self):
-        """The check that needs both ends: the target role here is one a collaborator may grant."""
+        """The student-assignment endpoint cannot overwrite an existing collaborator."""
         response = self.client.post(
-            self.role_url(self.other_collaborator), {"role": PlaylistRole.STUDENT.value}
+            self.add_url(), {"user_id": self.other_collaborator.pk}
         )
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 400)
+        self.assertFormError(
+            response.context["assign_individual_form"],
+            "user_id",
+            "This person already has a role on this playlist.",
+        )
         self.assertEqual(
             self.role_of(self.other_collaborator), PlaylistRole.COLLABORATOR
         )
@@ -292,13 +295,12 @@ class CollaboratorIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
             ).exists()
         )
 
-    def test_the_panel_offers_a_collaborator_only_the_student_role(self):
-        response = self.client.get(
-            reverse("render_playlist_members", args=[self.playlist.pk])
+    def test_a_collaborator_cannot_search_for_collaborator_assignments(self):
+        response = self.client.post(
+            reverse("playlist_collaborator_search", args=[self.playlist.pk]),
+            {"search": self.outsider.username},
         )
-        self.assertEqual(response.status_code, 200)
-        roles = response.context["grantable_roles"]
-        self.assertEqual([role["value"] for role in roles], [PlaylistRole.STUDENT])
+        self.assertEqual(response.status_code, 403)
 
     def test_the_panel_leaves_rows_a_collaborator_may_not_touch_uneditable(self):
         response = self.client.get(
