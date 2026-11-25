@@ -737,7 +737,7 @@ class SharedOwnedObject:
     def owner_label(self):
         """Chooser and admin label for the owner, which may be NULL."""
         if self.owner_id:
-            return self.owner.get_full_name().strip() or self.owner.username
+            return self.owner.get_full_name() or self.owner.username
         return "no owner"
 
     owner_label.short_description = "owner"
@@ -1206,20 +1206,13 @@ class Content(models.Model):
             if annotation_set.can_be_read_by(user)
         ]
 
-    def remove_subtitle_track(self, subtitle):
+    def remove_subtitle_track(self, subtitle, replacement=None):
+        """Stop using `subtitle`, and use `replacement` (if any) in its place, as default too."""
         self.subtitle_tracks.remove(subtitle)
+        if replacement is not None:
+            self.subtitle_tracks.add(replacement)
         if self.default_subtitle_track_id == subtitle.pk:
-            self.default_subtitle_track = None
-            self.save(update_fields=["default_subtitle_track", "updated_at"])
-
-    def replace_subtitle_track(self, old, new):
-        """Use `new` in place of `old`, keeping it the default if `old` was."""
-        self.subtitle_tracks.add(new)
-        if not self.subtitle_tracks.filter(pk=old.pk).exists():
-            return
-        self.subtitle_tracks.remove(old)
-        if self.default_subtitle_track_id == old.pk:
-            self.default_subtitle_track = new
+            self.default_subtitle_track = replacement
             self.save(update_fields=["default_subtitle_track", "updated_at"])
 
     def get_subtitles(self):

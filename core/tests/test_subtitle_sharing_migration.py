@@ -1,4 +1,4 @@
-"""Tests for the 0020 data migration that attaches existing subtitle tracks to contents."""
+"""Tests for the 0031 data migration that attaches existing subtitle tracks to contents."""
 
 import importlib
 

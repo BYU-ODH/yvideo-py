@@ -28,9 +28,7 @@
                                 type="button"
                                 class="multi-option-menu-button"
                                 command="show-modal"
-                                commandfor="{{ subtitle_panel.subtitle_track_creation_modal_id }}">
-                            Create new subtitle track
-                        </button>
+                                commandfor="subtitle-track-creation-modal">Create new subtitle track</button>
                         <button id="open-add-subtitle-track-modal"
                                 type="button"
                                 class="multi-option-menu-button"
@@ -58,7 +56,7 @@
                                 disabled>Export VTT</button>
                     </div>
                 </div>
-                {% include 'core/partials/modals/create_subtitle_track.html' with dialog_id=subtitle_panel.subtitle_track_creation_modal_id %}
+                {% include 'core/partials/modals/create_subtitle_track.html' with dialog_id="subtitle-track-creation-modal" %}
                 {% include 'core/partials/modals/add_subtitle_track.html' with dialog_id="add-subtitle-track-modal" %}
                 {% include 'core/partials/modals/edit_subtitle_track.html' with dialog_id="edit-subtitle-track-modal" %}
                 {% include 'core/partials/modals/delete_subtitle_track.html' with dialog_id="delete-subtitle-track-modal" %}

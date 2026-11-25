@@ -81,6 +81,9 @@ annotation_set_write_required = _object_permission_required(
 annotation_set_read_required = _object_permission_required(
     AnnotationSet, "annotation_set_id", "can_be_read_by", "annotation_set_read"
 )
+subtitle_admin_required = _object_permission_required(
+    Subtitle, "subtitle_id", "can_be_administered_by", "subtitle_admin"
+)
 subtitle_write_required = _object_permission_required(
     Subtitle, "subtitle_id", "can_be_edited_by", "subtitle_write"
 )

@@ -3497,7 +3497,11 @@ export class Editor {
         const option = document.getElementById("add-subtitle-track-selector").selectedOptions[0];
         if (!option?.value || button.disabled) return;
         button.disabled = true;
-        await this.postAndReloadWithSubtitleTrack(option.dataset.attachUrl, option.value, "Failed to add the subtitle track.");
+        await this.postAndReloadWithSubtitleTrack(
+          `/content/${this.contentId}/subtitles/${option.value}/attach/`,
+          option.value,
+          "Failed to add the subtitle track."
+        );
         button.disabled = false;
       });
     }

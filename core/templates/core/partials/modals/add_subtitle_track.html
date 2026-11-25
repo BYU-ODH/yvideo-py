@@ -8,8 +8,7 @@
             <select id="add-subtitle-track-selector" required>
                 <option value="" disabled selected>Select a subtitle track</option>
                 {% for choice in unattached_subtitle_tracks %}
-                    <option value="{{ choice.subtitle.pk }}"
-                            data-attach-url="{% url 'attach_subtitle_track' content.pk choice.subtitle.pk %}">
+                    <option value="{{ choice.subtitle.pk }}">
                         {% include "core/partials/subtitle_track_option_label.html" %}
                     </option>
                 {% endfor %}
@@ -17,8 +16,8 @@
             <p>
                 Adding a track points your video at it rather than copying it. If someone
                 else owns it, they may change it, and any changes they make will show up
-                here. To make your own editable version, add it and then copy it from
-                Edit subtitle track.
+                here. To make your own editable version instead, use Create new subtitle
+                track and copy it.
             </p>
             <button id="add-subtitle-track-button"
                     type="submit"

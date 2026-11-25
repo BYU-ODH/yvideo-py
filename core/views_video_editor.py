@@ -49,6 +49,7 @@ from .permissions import checks_permission_inline
 from .permissions import content_read_required
 from .permissions import content_write_required
 from .permissions import forbidden
+from .permissions import subtitle_admin_required
 from .permissions import subtitle_read_required
 from .permissions import subtitle_write_required
 from .permissions import track_write_required
@@ -184,10 +185,7 @@ def video_editor(request, content):
         file_key = request.user.get_resource_filekey(content)
 
         resource = content.resource
-        subtitle_track_choices = subtitle_track_choices_for(content, request.user)
-        subtitle_panel = {
-            "subtitle_track_creation_modal_id": "subtitle-track-creation-modal",
-        }
+        subtitle_tracks = subtitle_track_choices(content, request.user)
 
         available_sets = annotation_set_choices(content, request.user)
 
@@ -245,12 +243,11 @@ def video_editor(request, content):
             "annotation_groups": annotation_groups,
             "tracks": tracks,
             "attached_subtitle_tracks": [
-                choice for choice in subtitle_track_choices if choice["attached"]
+                choice for choice in subtitle_tracks if choice["attached"]
             ],
             "unattached_subtitle_tracks": [
-                choice for choice in subtitle_track_choices if not choice["attached"]
+                choice for choice in subtitle_tracks if not choice["attached"]
             ],
-            "subtitle_panel": subtitle_panel,
             "create_form": SubtitleCreateForm(resource=resource, owner=request.user),
             "copy_form": SubtitleCopyForm(resource=resource, owner=request.user),
             "breadcrumbs": content_details_trail(content, ("Editor", None)),
@@ -280,7 +277,7 @@ def annotation_set_choices(content, user):
     ]
 
 
-def subtitle_track_choices_for(content, user):
+def subtitle_track_choices(content, user):
     """Every subtitle track on the resource `user` may read, marked like annotation_set_choices().
 
     Tracks the user cannot edit are included because using someone else's track is
@@ -1726,7 +1723,7 @@ def _process_subtitle_track_copy(
                     else:
                         break
             if replace:
-                content.replace_subtitle_track(source, copied)
+                content.remove_subtitle_track(source, replacement=copied)
             else:
                 content.subtitle_tracks.add(copied)
     except ValidationError as exception:
@@ -1988,11 +1985,9 @@ def update_subtitle_content(request, subtitle):
 
 
 @require_GET
-@subtitle_write_required
+@subtitle_admin_required
 def delete_subtitle_track_dialog(request, subtitle):
     """The delete dialog's contents, which depend on who else uses the track."""
-    if not subtitle.can_be_administered_by(request.user):
-        return forbidden("Only the owner or an admin can delete a subtitle track.")
     return render(
         request,
         "core/partials/modals/delete_subtitle_track.html",
@@ -2005,11 +2000,9 @@ def delete_subtitle_track_dialog(request, subtitle):
 
 
 @require_http_methods(["DELETE"])
-@subtitle_write_required
+@subtitle_admin_required
 def delete_subtitle(request, subtitle):
     """Deletes the track, or transfers ownership if another user's video uses it."""
-    if not subtitle.can_be_administered_by(request.user):
-        return forbidden("Only the owner or an admin can delete a subtitle track.")
     try:
         body = json.loads(request.body) if request.body else {}
         if not isinstance(body, dict):
@@ -2046,7 +2039,7 @@ def attach_subtitle_track(request, content, subtitle_id):
     if not subtitle.can_be_read_by(request.user):
         return forbidden()
     content.subtitle_tracks.add(subtitle)
-    return JsonResponse({"id": subtitle.pk})
+    return HttpResponse()
 
 
 @require_POST
