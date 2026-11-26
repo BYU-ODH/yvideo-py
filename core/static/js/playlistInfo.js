@@ -273,14 +273,22 @@ function setupUnassignCourses() {
     requestPending = true;
     confirmButton.disabled = true;
 
-    await fetch(confirmButton.dataset.unassignUrl, {
-      method: "POST",
-      headers: {
-        "X-CSRFToken": getCSRFToken(),
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(target)
-    });
+    try {
+      await fetch(confirmButton.dataset.unassignUrl, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": getCSRFToken(),
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(target)
+      });
+    } catch {
+      displayUserMessage("error", "The course could not be removed from the playlist. Please try again.");
+      requestPending = false;
+      confirmButton.disabled = !courseToUnassign;
+      return;
+    }
+    // The server queues its success or error message for the reloaded page to show.
     window.location.reload();
   });
 }
