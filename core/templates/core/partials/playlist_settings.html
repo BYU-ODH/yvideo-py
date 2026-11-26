@@ -7,8 +7,7 @@
     {{ form.non_field_errors }}
     {% if can_edit %}
         <div class="playlist-form-group">
-            <label aria-disabled="{% if form.archived.value == True %}True{% else %}False{% endif %}"
-                   for="{{ form.published.id_for_label }}"
+            <label for="{{ form.published.id_for_label }}"
                    class="playlist-setting-checkbox-button {% if form.published.value == True %} blue-button {% else %} white-button-with-border {% endif %}">
                 {% if form.published.value == True %}Unpublish{% else %}Publish{% endif %}
                 <input type="checkbox"

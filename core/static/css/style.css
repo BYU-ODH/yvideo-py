@@ -1062,7 +1062,7 @@ button:hover {
     align-items: center;
 }
 
-.playlist-setting-checkbox-button[aria-disabled="True"] {
+.playlist-setting-checkbox-button:has(input:disabled) {
     border-color: grey;
     box-shadow: none;
 }
@@ -2391,13 +2391,13 @@ dialog .assignment-search-input {
     }
 }
 
-button.disabled, .playlist-setting-checkbox-button[aria-disabled='True'] {
+button.disabled, .playlist-setting-checkbox-button:has(input:disabled) {
     cursor: not-allowed;
     color: #434343;
     background-color: #e0e0e040;
 }
 
-button.disabled:hover, .playlist-setting-checkbox-button[aria-disabled='True']:hover {
+button.disabled:hover, .playlist-setting-checkbox-button:has(input:disabled):hover {
     background-color: #e0e0e040;
 }
 
