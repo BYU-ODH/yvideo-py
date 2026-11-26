@@ -35,7 +35,7 @@
                                     command="show-modal">+ Add New Video</button>
                             <button id="playlist-settings-thumbnail"
                                     class="white-button-with-border"
-                                    data-thumbnail-editor-url="/playlists/{{ playlist.id }}/thumbnail/">
+                                    data-thumbnail-editor-url="{% url 'playlist_thumbnail_editor' playlist.pk %}">
                                 Change Thumbnail
                             </button>
                             <button id="playlist-settings-delete"
@@ -115,7 +115,7 @@
                                 <div class="column-flex">
                                     <div id="assigned-courses">
                                         <p class="pnc-section-header">Courses</p>
-                                        <div id="playlist-semseter-selector-wrapper" class="row-flex">
+                                        <div id="playlist-semester-selector-wrapper" class="row-flex">
                                             <label for="playlist-semester-selector">Semester</label>
                                             <select id="playlist-semester-selector">
                                                 {% for option in available_yearterms %}
@@ -156,7 +156,7 @@
                                     <h3>Collaborators</h3>
                                     <p>These people can edit</p>
                                 </div>
-                                <div id="assigned-collaborators">
+                                <div>
                                     {% include "core/partials/individual_assignment_list.html" with individual_accesses=collaborator_accesses membership_list_id="assigned-collaborators-list" empty_message="No collaborators assigned." can_remove=can_administer %}
 
                                     {% if can_administer %}
