@@ -17,7 +17,7 @@
                            maxlength="255">
                     {% if can_edit %}
                         <button class="text-edit-icon-button" aria-label="Edit playlist name">
-                            <img src="{% static 'img/edit.svg' %}" alt="E">
+                            <img src="{% static 'img/edit.svg' %}" alt="">
                         </button>
                     {% endif %}
                 </div>
@@ -84,7 +84,7 @@
                                                 data-video-url="{% url 'player' content.id %}"
                                                 aria-label="Copy video link for {{ content.display_name }}"
                                                 title="Copy video link">
-                                            <img src="{% static 'img/link.svg' %}" alt="L">
+                                            <img src="{% static 'img/link.svg' %}" alt="">
                                         </button>
                                         <button type="button"
                                                 class="setting-toggle"

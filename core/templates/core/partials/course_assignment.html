@@ -13,12 +13,14 @@
                 data-edit-url="{% url 'edit_playlist_courses_form' playlist.id %}"
                 command="show-modal"
                 commandfor="edit-assigned-course">
-            <img src="{% static 'img/edit.svg' %}" alt="E">
+            <img src="{% static 'img/edit.svg' %}" alt="">
         </button>
-        <button class="assigned-course-delete assigned-playlist-button"
+        <button type="button"
+                class="assigned-course-delete assigned-playlist-button"
+                aria-label="Unassign {{ course.dept }} {{ course.catalog_number }}"
                 command="show-modal"
                 commandfor="delete-assigned-course-modal">
-            <img src="{% static 'img/trash-red.svg' %}" alt="T">
+            <img src="{% static 'img/trash-red.svg' %}" alt="">
         </button>
     </div>
 </div>
