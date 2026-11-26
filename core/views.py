@@ -683,7 +683,6 @@ def prepare_playlist_course_edit_form(request, playlist):
         logger.error(
             f"There are no courses with dept {request.GET.get('dept')}, catalog number {request.GET.get('catalog_number')}, and yearterm {request.GET.get('yearterm')} associated with this playlist ({playlist.id})"
         )
-        messages.error(request, "The course you are trying to edit could not be found.")
         return HttpResponse(status=404)
     course = courses[0]
     form = EditAssignedCoursesForm(
@@ -829,8 +828,7 @@ def update_playlist_settings(request, playlist):
             # Only IC editors see (and so submit) the field.
             if request.user.is_ic_editor:
                 playlist.is_ic = form.cleaned_data["is_ic"]
-            with transaction.atomic():
-                playlist.save()
+            playlist.save()
             return render(
                 request,
                 "core/partials/playlist_settings.html",
@@ -852,25 +850,22 @@ def update_playlist_settings(request, playlist):
 @require_POST
 @playlist_write_required
 def update_playlist_name(request, playlist):
-    parsed_body = json.loads(request.body)
-    update_fields = []
-    if "new_value" in parsed_body:
-        # name change only. see utils.js::setupInPlaceFieldEdit
-        new_name = parsed_body["new_value"]
-        if new_name is None:
-            return HttpResponseBadRequest()
-        new_name = new_name.strip()
-        if new_name == "":
-            messages.error(request, "A playlist name cannot be blank")
-            return HttpResponseBadRequest()
-        playlist.name = new_name[:255]
-        update_fields.append("name")
+    # see utils.js::setupInPlaceFieldEdit
+    try:
+        new_name = json.loads(request.body)["new_value"]
+    except (json.JSONDecodeError, UnicodeDecodeError, KeyError, TypeError):
+        return HttpResponseBadRequest()
+    if not isinstance(new_name, str):
+        return HttpResponseBadRequest()
+    new_name = new_name.strip()
+    if new_name == "":
+        messages.error(request, "A playlist name cannot be blank")
+        return HttpResponseBadRequest()
+    playlist.name = new_name[:255]
 
     try:
-        with transaction.atomic():
-            playlist.save(update_fields=update_fields)
-            return HttpResponse(status=200)
-
+        playlist.save(update_fields=["name"])
+        return HttpResponse(status=200)
     except Exception as e:
         logger.exception(e)
         messages.error(
