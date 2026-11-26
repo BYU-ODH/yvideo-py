@@ -1068,7 +1068,15 @@ button:hover {
 }
 
 .playlist-setting-input[type="checkbox"] {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
+.playlist-setting-checkbox-button:has(.playlist-setting-input:focus-visible) {
+    outline: var(--medium-blue) dashed;
+    box-shadow: none;
 }
 
 #add-new-playlist-button {

@@ -101,13 +101,9 @@ function setupPlaylistSettings() {
     e.preventDefault();
   });
 
-  playlistContent.addEventListener("click", async (e) => {
-    const checkboxButton = e.target.closest(".playlist-setting-checkbox-button");
-    if (checkboxButton) {
-      const settingCheckbox = checkboxButton.querySelector("input[type='checkbox']");
-      if (!settingCheckbox) return;
-      settingCheckbox.checked = !settingCheckbox.checked;
-
+  playlistContent.addEventListener("change", async (e) => {
+    const settingCheckbox = e.target.closest(".playlist-setting-input");
+    if (settingCheckbox) {
       const playlistSettings = document.getElementById("playlist-settings");
       if (!playlistSettings) return;
 
@@ -131,6 +127,7 @@ function setupPlaylistSettings() {
       try {
         const updatedForm = await result.text();
         playlistSettings.outerHTML = updatedForm;
+        document.getElementById(settingCheckbox.id)?.focus();
         displayUserMessage("success", "The playlist settings were updated successfully");
       }
       catch {
