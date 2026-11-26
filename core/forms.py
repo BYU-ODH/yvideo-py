@@ -121,18 +121,17 @@ class AssignCoursesForm(forms.Form):
         return sections
 
     @transaction.atomic
-    def save(self, *, playlist, yearterm):
+    def save(self, *, playlist):
         """Add one course per section without removing existing assignments."""
         if not self.is_valid():
             raise ValueError("Cannot save an invalid course assignment form.")
-        yearterm = Course._meta.get_field("yearterm").clean(yearterm, None)
         courses = []
         for section in self.cleaned_data["sections"]:
             course, _ = Course.objects.get_or_create(
                 dept=self.cleaned_data["dept"],
                 catalog_number=self.cleaned_data["catalog_number"],
                 section_number=section,
-                yearterm=yearterm,
+                yearterm=self.cleaned_data["yearterm"],
             )
             courses.append(course)
         playlist.courses.add(*courses)

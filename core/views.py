@@ -662,7 +662,7 @@ def assign_playlist_to_course(request, playlist):
         )
 
     try:
-        form.save(playlist=playlist, yearterm=form.cleaned_data["yearterm"])
+        form.save(playlist=playlist)
     except Exception:
         logger.exception("Failed to assign courses to playlist %s", playlist.pk)
         return HttpResponseServerError()
@@ -723,9 +723,7 @@ def update_playlist_course_sections(request, playlist):
     # save new additions and then remove any missing sections
     try:
         with transaction.atomic():
-            courses = form.save(
-                playlist=playlist, yearterm=form.cleaned_data["yearterm"]
-            )
+            courses = form.save(playlist=playlist)
             playlist.courses.remove(
                 *(original_course_ids - {course.pk for course in courses})
             )
@@ -838,10 +836,8 @@ def update_playlist_settings(request, playlist):
                     "can_edit": playlist.can_be_edited_by(request.user),
                 },
             )
-        except Exception as e:
-            logger.error(
-                f"An error occured while attempting to update playlist settings. {e}"
-            )
+        except Exception:
+            logger.exception("Failed to update settings for playlist %s", playlist.pk)
             return HttpResponseServerError()
     else:
         return HttpResponseBadRequest()
@@ -866,8 +862,8 @@ def update_playlist_name(request, playlist):
     try:
         playlist.save(update_fields=["name"])
         return HttpResponse(status=200)
-    except Exception as e:
-        logger.exception(e)
+    except Exception:
+        logger.exception("Failed to rename playlist %s", playlist.pk)
         messages.error(
             request,
             "An error occurred while attempting to update the playlist. Your changes have been reverted.",

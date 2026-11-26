@@ -451,7 +451,7 @@ function initialize() {
   setupUnassignCourses();
   const playlistNameWrapper = document.getElementById("playlist-name-wrapper");
   const playlistId = getPlaylistIdValue();
-  if (playlistNameWrapper && playlistId !== undefined) {
+  if (playlistNameWrapper?.querySelector("button") && playlistId !== undefined) {
     setupInPlaceFieldEdit(playlistNameWrapper, `/playlists/${playlistId}/change-name/`, {
       onSuccess: () => {
         const playlistTitle = playlistNameWrapper.querySelector("h3");
