@@ -302,6 +302,12 @@ function setupAssignMember(dialogId) {
   dialog.addEventListener("input", clearInvalid);
   dialog.addEventListener("change", clearInvalid);
 
+  // PR EXPLANATION: the search results are submit buttons, so Enter in the search field would
+  // "click" the first result and assign someone the user never picked.
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && event.target.name === "search") event.preventDefault();
+  });
+
   dialog.addEventListener("submit", async (event) => {
     const form = event.target;
     if (!form.matches("[data-individual-assignment-form]")) return;
