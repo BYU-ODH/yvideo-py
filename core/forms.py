@@ -100,6 +100,7 @@ class AssignCoursesForm(forms.Form):
         validators=Course._meta.get_field("dept").validators,
     )
     catalog_number = Course._meta.get_field("catalog_number").formfield(
+        form_class=_UppercaseCharField,
         validators=Course._meta.get_field("catalog_number").validators,
     )
     sections = forms.CharField(
@@ -112,6 +113,8 @@ class AssignCoursesForm(forms.Form):
         sections = []
         for value in self.cleaned_data["sections"].split(","):
             section = value.strip()
+            if not section:
+                continue
             if not re.fullmatch(r"[0-9]{1,3}", section):
                 raise ValidationError(
                     "Enter section numbers of 1 to 3 digits, separated by commas."
@@ -119,6 +122,8 @@ class AssignCoursesForm(forms.Form):
             section = section_field.clean(section.zfill(3), None)
             if section not in sections:
                 sections.append(section)
+        if not sections:
+            raise ValidationError("Enter at least one section number.")
         return sections
 
     @transaction.atomic
