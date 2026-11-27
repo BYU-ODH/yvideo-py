@@ -167,7 +167,6 @@ class AssignIndividualForm(forms.Form):
 
     def clean_user_id(self):
         user = self.cleaned_data["user_id"]
-        self.selected_user = user
         if user.pk == self.playlist.owner_id:
             raise ValidationError("This person already owns the playlist.")
         if (
