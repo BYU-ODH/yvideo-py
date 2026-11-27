@@ -854,21 +854,29 @@ def update_playlist_name(request, playlist):
     if not isinstance(new_name, str):
         return HttpResponseBadRequest()
     new_name = new_name.strip()
+    # Messages go in the body because the page does not reload; utils.js shows text/plain bodies.
     if new_name == "":
-        messages.error(request, "A playlist name cannot be blank")
-        return HttpResponseBadRequest()
+        return HttpResponseBadRequest(
+            "A playlist name cannot be blank.", content_type="text/plain"
+        )
     playlist.name = new_name[:255]
 
     try:
-        playlist.save(update_fields=["name"])
+        # Its own savepoint, so a duplicate name doesn't break any enclosing transaction.
+        with transaction.atomic():
+            playlist.save(update_fields=["name"])
         return HttpResponse(status=200)
+    except IntegrityError:
+        return HttpResponseBadRequest(
+            "The playlist owner already has a playlist with that name.",
+            content_type="text/plain",
+        )
     except Exception:
         logger.exception("Failed to rename playlist %s", playlist.pk)
-        messages.error(
-            request,
-            "An error occurred while attempting to update the playlist. Your changes have been reverted.",
+        return HttpResponseServerError(
+            "The playlist could not be renamed. Please try again.",
+            content_type="text/plain",
         )
-        return HttpResponseServerError()
 
 
 def scheduled_in_ic_programs(subject):
