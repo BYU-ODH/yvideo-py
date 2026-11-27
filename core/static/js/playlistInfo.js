@@ -110,17 +110,31 @@ function setupPlaylistSettings() {
       const settingsData = new FormData(playlistSettings);
 
       // We don't want the user to make another change while request is in flight
-      const inputs = playlistSettings.querySelectorAll(".playlist-setting-input");
+      const inputs = [...playlistSettings.querySelectorAll(".playlist-setting-input")];
+      const wasDisabled = inputs.map((input) => input.disabled);
       for (let input of inputs) {
         input.disabled = true;
       }
 
-      const result = await fetch(playlistSettings.action, {
-        method: playlistSettings.method,
-        body: settingsData
-      });
-      if (!result.ok) {
-        displayUserMessage("error", "The playlist settings could not be updated. Please refresh the page.");
+      // Undo the unsaved toggle so the buttons still match what is saved.
+      const restoreInputs = () => {
+        settingCheckbox.checked = !settingCheckbox.checked;
+        inputs.forEach((input, i) => { input.disabled = wasDisabled[i]; });
+        settingCheckbox.focus();
+      };
+
+      let result;
+      try {
+        result = await fetch(playlistSettings.action, {
+          method: playlistSettings.method,
+          body: settingsData
+        });
+      } catch {
+        result = null;
+      }
+      if (!result?.ok) {
+        restoreInputs();
+        displayUserMessage("error", "The playlist settings could not be updated. Please try again.");
         return;
       }
 
