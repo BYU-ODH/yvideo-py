@@ -147,6 +147,13 @@ function markInvalid(field) {
   field?.setAttribute("aria-invalid", "true");
 }
 
+// Swapping in a re-rendered form drops focus, so move it to the first problem; screen
+// readers then read that field's error, or the form-wide errors.
+function focusFirstError(form, errorsSelector) {
+  const target = form.querySelector("[aria-invalid='true']") ?? form.querySelector(errorsSelector);
+  target?.focus();
+}
+
 function clearInvalid(event) {
   event.target.classList.remove("invalid-input");
   event.target.removeAttribute("aria-invalid");
@@ -224,6 +231,7 @@ function setupAssignCourses() {
           form.replaceWith(updatedForm);
           const invalidFields = updatedForm.querySelectorAll("[aria-invalid='true']");
           invalidFields.forEach(markInvalid);
+          focusFirstError(updatedForm, "[data-course-form-errors]");
           return;
         }
         if (!response.ok) throw new Error("Assignment failed");
@@ -358,6 +366,7 @@ function setupAssignMember(dialogId) {
         form.replaceWith(updatedForm);
         const invalidFields = updatedForm.querySelectorAll("[aria-invalid='true']");
         invalidFields.forEach(markInvalid);
+        focusFirstError(updatedForm, "[data-assignment-form-errors]");
         return;
       }
       if (response.status !== 200) throw new Error("Assignment failed");
