@@ -168,6 +168,15 @@ function focusFirstError(form, errorsSelector) {
   target?.focus();
 }
 
+// Reopening a dialog should not show errors from an earlier attempt.
+function clearFormErrors(form) {
+  form.querySelectorAll(".errorlist").forEach((list) => list.remove());
+  form.querySelectorAll("[aria-invalid='true']").forEach((field) => {
+    field.classList.remove("invalid-input");
+    field.removeAttribute("aria-invalid");
+  });
+}
+
 function clearInvalid(event) {
   event.target.classList.remove("invalid-input");
   event.target.removeAttribute("aria-invalid");
@@ -211,6 +220,11 @@ function setupAssignCourses() {
         container.textContent = "Could not load course assignment. Close this dialog and try again.";
       }
     }
+  });
+
+  addDialog.addEventListener("close", () => {
+    const form = addDialog.querySelector("form[data-course-assignment-form]");
+    if (form) clearFormErrors(form);
   });
 
   for (const dialog of [addDialog, editDialog]) {
@@ -280,7 +294,7 @@ function setupUnassignCourses() {
       yearterm: semesterSelector.value
     };
     const semester = semesterSelector.selectedOptions[0].textContent.trim();
-    description.textContent = `Remove ${courseToUnassign.dept} ${courseToUnassign.catalog_number}, and its sections from this playlist for ${semester}?`;
+    description.textContent = `Remove ${courseToUnassign.dept} ${courseToUnassign.catalog_number} and its sections from this playlist for ${semester}?`;
     confirmButton.disabled = requestPending;
   });
 
@@ -400,6 +414,13 @@ function setupAssignMember(dialogId) {
   dialog.addEventListener("close", () => {
     clearTimeout(searchTimeout);
     ++requestId;
+    const form = dialog.querySelector("form[data-individual-assignment-form]");
+    if (!form) return;
+    clearFormErrors(form);
+    form.elements.namedItem("search").value = "";
+    form.elements.namedItem("user_id").value = "";
+    form.querySelector("[data-individual-search-results]").replaceChildren();
+    form.querySelector("[data-assignment-form-errors]").hidden = true;
   });
 
   dialog.addEventListener("input", (event) => {
@@ -414,6 +435,7 @@ function setupAssignMember(dialogId) {
 
     results.replaceChildren();
     errors.hidden = true;
+    if (!query) return;
     searchTimeout = setTimeout(async () => {
       const body = new FormData();
       body.append("search", query);
