@@ -96,6 +96,7 @@ class AssignCoursesForm(forms.Form):
     dept = Course._meta.get_field("dept").formfield(
         form_class=_UppercaseCharField,
         label="Department",
+        widget=forms.TextInput(attrs={"autofocus": True}),
         validators=Course._meta.get_field("dept").validators,
     )
     catalog_number = Course._meta.get_field("catalog_number").formfield(

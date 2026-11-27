@@ -306,6 +306,19 @@ function setupAssignMember(dialogId) {
   // "click" the first result and assign someone the user never picked.
   dialog.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && event.target.name === "search") event.preventDefault();
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+
+    // Arrow keys step between the search field and its results, like Tab and Shift+Tab.
+    const form = event.target.closest("form[data-individual-assignment-form]");
+    if (!form) return;
+    const items = [
+      form.elements.namedItem("search"),
+      ...form.querySelectorAll("button[data-individual-user-id]:not(:disabled)"),
+    ];
+    const index = items.indexOf(event.target);
+    if (index === -1) return;
+    event.preventDefault();
+    items[index + (event.key === "ArrowDown" ? 1 : -1)]?.focus();
   });
 
   dialog.addEventListener("submit", async (event) => {

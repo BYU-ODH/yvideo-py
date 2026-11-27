@@ -26,6 +26,7 @@
                            name="{{ assign_individual_form.search.html_name }}"
                            value="{{ assign_individual_form.search.value|default_if_none:'' }}"
                            autocomplete="off"
+                           autofocus
                            {% if assign_individual_form.search.errors or assign_individual_form.user_id.errors %}aria-invalid="true"{% endif %}
                            aria-describedby="assign-{{ assignment_kind }}-search-errors assign-{{ assignment_kind }}-user-errors">
                     <div data-individual-search-results
