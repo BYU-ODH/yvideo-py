@@ -33,8 +33,7 @@ class PlaylistCourseEndpointTests(TestCase):
             {**self.course_data, "sections": "001"},
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"success": True})
+        self.assertEqual(response.status_code, 204)
         course = self.playlist.courses.get()
         self.assertEqual(
             (
@@ -52,8 +51,7 @@ class PlaylistCourseEndpointTests(TestCase):
             {**self.course_data, "sections": "001, 002, 003"},
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"success": True})
+        self.assertEqual(response.status_code, 204)
         self.assertCountEqual(
             self.playlist.courses.values_list("section_number", flat=True),
             ["001", "002", "003"],
@@ -85,7 +83,7 @@ class PlaylistCourseEndpointTests(TestCase):
             },
         )
 
-        self.assertContains(response, 'value="002"')
+        self.assertEqual(response.status_code, 204)
         self.assertEqual(
             list(self.playlist.courses.values_list("section_number", flat=True)),
             ["002"],
@@ -108,7 +106,7 @@ class PlaylistCourseEndpointTests(TestCase):
             },
         )
 
-        self.assertContains(response, 'value="002, 004, 005"')
+        self.assertEqual(response.status_code, 204)
         self.assertCountEqual(
             self.playlist.courses.values_list("section_number", flat=True),
             ["002", "004", "005"],
@@ -133,9 +131,7 @@ class PlaylistCourseEndpointTests(TestCase):
             },
         )
 
-        self.assertContains(response, 'value="FREN"')
-        self.assertContains(response, 'value="201"')
-        self.assertContains(response, 'value="001, 002, 003"')
+        self.assertEqual(response.status_code, 204)
         self.assertFalse(self.playlist.courses.filter(**self.course_data).exists())
         self.assertCountEqual(
             self.playlist.courses.values_list(
@@ -184,7 +180,7 @@ class PlaylistCourseEndpointTests(TestCase):
             },
         )
 
-        self.assertContains(response, 'value="002"')
+        self.assertEqual(response.status_code, 204)
         self.assertEqual(
             list(self.playlist.courses.values_list("section_number", flat=True)),
             ["002"],

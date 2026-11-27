@@ -383,7 +383,7 @@ function setupAssignMember(dialogId) {
         focusFirstError(updatedForm, "[data-assignment-form-errors]");
         return;
       }
-      if (response.status !== 200) throw new Error("Assignment failed");
+      if (!response.ok) throw new Error("Assignment failed");
       window.location.reload();
     } catch {
       displayUserMessage("error", "Could not assign this person to the playlist. Please try again.")

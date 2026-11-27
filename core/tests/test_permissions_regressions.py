@@ -628,8 +628,7 @@ class CollaboratorTests(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"success": True})
+        self.assertEqual(response.status_code, 204)
         self.assertEqual(
             list(
                 self.playlist.courses.values_list(

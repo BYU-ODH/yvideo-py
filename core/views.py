@@ -666,7 +666,7 @@ def assign_playlist_to_course(request, playlist):
     except Exception:
         logger.exception("Failed to assign courses to playlist %s", playlist.pk)
         return HttpResponseServerError()
-    return JsonResponse({"success": True})
+    return HttpResponse(status=204)
 
 
 @require_GET
@@ -733,22 +733,7 @@ def update_playlist_course_sections(request, playlist):
         )
         return HttpResponseServerError()
 
-    # rebuild form to refresh UI
-    sections = playlist.courses.filter(
-        dept=form.cleaned_data["dept"],
-        catalog_number=form.cleaned_data["catalog_number"],
-        yearterm=form.cleaned_data["yearterm"],
-    ).values_list("section_number", flat=True)
-    form = EditAssignedCoursesForm(
-        initial={
-            **form.cleaned_data,
-            "sections": ", ".join(sections),
-            "original_dept": form.cleaned_data["dept"],
-            "original_catalog_number": form.cleaned_data["catalog_number"],
-        },
-        auto_id="edit-courses-%s",
-    )
-    return render_edit_playlist_courses_form(request, playlist, form)
+    return HttpResponse(status=204)
 
 
 def render_edit_playlist_courses_form(request, playlist, form, *, status=200):
@@ -1066,7 +1051,7 @@ def _assign_playlist_member(request, playlist, *, collaborator=False):
                 user=user,
                 defaults={"playlist_role": PlaylistRole.STUDENT},
             )
-        return HttpResponse(status=200)
+        return HttpResponse(status=204)
     return render(
         request,
         "core/partials/assign_individual_to_playlist_form.html",

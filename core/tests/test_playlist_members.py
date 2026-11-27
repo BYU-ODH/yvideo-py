@@ -114,7 +114,7 @@ class OwnerManagesEveryoneTests(PlaylistMemberTestCase):
             with self.subTest(role=role):
                 newcomer = UserFactory(student=True)
                 response = self.client.post(url, {"user_id": newcomer.pk})
-                self.assertEqual(response.status_code, 200, response.content[:200])
+                self.assertEqual(response.status_code, 204, response.content[:200])
                 self.assertEqual(response.content, b"")
                 self.assertEqual(self.role_of(newcomer), role)
 
@@ -136,7 +136,7 @@ class OwnerManagesEveryoneTests(PlaylistMemberTestCase):
         response = self.client.post(
             self.collaborator_add_url(), {"user_id": self.student.pk}
         )
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)
         self.assertEqual(self.role_of(self.student), PlaylistRole.COLLABORATOR)
 
     def test_the_owner_may_reassign_a_collaborator_as_a_student(self):
@@ -150,7 +150,7 @@ class OwnerManagesEveryoneTests(PlaylistMemberTestCase):
 
         response = self.client.post(self.add_url(), {"user_id": self.collaborator.pk})
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)
         self.assertEqual(self.role_of(self.collaborator), PlaylistRole.STUDENT)
 
     def test_the_owner_may_remove_a_collaborator(self):
@@ -219,7 +219,7 @@ class OwnerManagesEveryoneTests(PlaylistMemberTestCase):
                     self.add_url(), {"user_id": newcomer.pk, "role": role}
                 )
 
-                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.status_code, 204)
                 self.assertEqual(self.role_of(newcomer), PlaylistRole.STUDENT)
 
 
@@ -241,7 +241,7 @@ class CollaboratorIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
             self.add_url(),
             {"user_id": self.outsider.pk, "role": PlaylistRole.STUDENT.value},
         )
-        self.assertEqual(response.status_code, 200, response.content[:200])
+        self.assertEqual(response.status_code, 204, response.content[:200])
         self.assertEqual(self.role_of(self.outsider), PlaylistRole.STUDENT)
 
     def test_a_collaborator_may_remove_a_student(self):
