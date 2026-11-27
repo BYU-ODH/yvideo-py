@@ -545,77 +545,83 @@ def playlist_info(request, playlist):
         if not can_edit:
             contents = contents.filter(published=True)
         contents = [(content, Thumbnail.for_item(content)) for content in contents]
-        now = timezone.now()
-
-        # If the user refreshes the page after selecting yearterm, we want to preserve that selection
-        yearterm = request.GET.get("yearterm")
-
-        yearterms = list(YearTerm.objects.all())
-        if yearterm is None:
-            for term in yearterms:
-                if term.start_date_time <= now < term.end_date_time:
-                    yearterm = term.yearterm
-                    break
-            if yearterm is None:
-                yearterm = estimate_current_yearterm(timezone.localdate(now))
-
-        if not re.fullmatch(r"[0-9]{4}[1345]", yearterm):
-            return HttpResponseBadRequest("Select a valid semester.")
-        assigned_courses = get_assigned_courses(playlist, yearterm)
-        available_yearterms = [
-            {"value": value, "label": display_yearterm(value)}
-            for value in sorted({term.yearterm for term in yearterms} | {yearterm})
-        ]
-
-        accesses = (
-            PlaylistUserAccess.objects.filter(playlist=playlist)
-            .exclude(user_id=playlist.owner_id)
-            .select_related("user")
-            .order_by("user__last_name", "user__username")
-            if can_edit
-            else []
-        )
-        individual_accesses = []
-        collaborator_accesses = []
-        for access in accesses:
-            if access.playlist_role == PlaylistRole.STUDENT:
-                individual_accesses.append(access)
-            elif access.playlist_role == PlaylistRole.COLLABORATOR:
-                collaborator_accesses.append(access)
 
         context = {
             "playlist": playlist,
             "contents": contents,
             "thumbnail": Thumbnail.for_item(playlist) if can_edit else None,
             "can_edit": can_edit,
-            "can_administer": playlist.can_be_administered_by(request.user),
             "form": PlaylistSettingsForm(instance=playlist),
-            "assigned_courses": assigned_courses,
-            "individual_accesses": individual_accesses,
-            "collaborator_accesses": collaborator_accesses,
-            "assign_individual_form": AssignIndividualForm(
-                playlist=playlist, auto_id="assign-individual-%s"
-            )
-            if can_edit
-            else None,
-            "assign_collaborator_form": AssignIndividualForm(
-                playlist=playlist,
-                allow_reassignment=True,
-                auto_id="assign-collaborator-%s",
-            )
-            if playlist.can_be_administered_by(request.user)
-            else None,
-            "available_yearterms": available_yearterms,
-            "selected_yearterm": yearterm,
-            "assign_courses_form": AssignCoursesForm(auto_id="assign-courses-%s")
-            if can_edit
-            else None,
             "breadcrumbs": breadcrumb_trail((playlist.name, None)),
         }
+        if can_edit:
+            context_or_error = _playlist_editing_context(request, playlist)
+            if isinstance(context_or_error, HttpResponse):
+                return context_or_error
+            context.update(context_or_error)
         return render(request, "core/playlist_info.html", context)
     except Exception as e:
         logger.error(f"Failed to retrieve playlist info. Exception: {e}")
         return HttpResponseServerError()
+
+
+def _playlist_editing_context(request, playlist):
+    """The course and people panels, which only editors see."""
+    now = timezone.now()
+
+    # If the user refreshes the page after selecting yearterm, we want to preserve that selection
+    yearterm = request.GET.get("yearterm")
+
+    yearterms = list(YearTerm.objects.all())
+    if yearterm is None:
+        for term in yearterms:
+            if term.start_date_time <= now < term.end_date_time:
+                yearterm = term.yearterm
+                break
+        if yearterm is None:
+            yearterm = estimate_current_yearterm(timezone.localdate(now))
+
+    if not re.fullmatch(r"[0-9]{4}[1345]", yearterm):
+        return HttpResponseBadRequest("Select a valid semester.")
+    available_yearterms = [
+        {"value": value, "label": display_yearterm(value)}
+        for value in sorted({term.yearterm for term in yearterms} | {yearterm})
+    ]
+
+    individual_accesses = []
+    collaborator_accesses = []
+    accesses = (
+        PlaylistUserAccess.objects.filter(playlist=playlist)
+        .exclude(user_id=playlist.owner_id)
+        .select_related("user")
+        .order_by("user__last_name", "user__username")
+    )
+    for access in accesses:
+        if access.playlist_role == PlaylistRole.STUDENT:
+            individual_accesses.append(access)
+        elif access.playlist_role == PlaylistRole.COLLABORATOR:
+            collaborator_accesses.append(access)
+
+    can_administer = playlist.can_be_administered_by(request.user)
+    return {
+        "can_administer": can_administer,
+        "assigned_courses": get_assigned_courses(playlist, yearterm),
+        "individual_accesses": individual_accesses,
+        "collaborator_accesses": collaborator_accesses,
+        "assign_individual_form": AssignIndividualForm(
+            playlist=playlist, auto_id="assign-individual-%s"
+        ),
+        "assign_collaborator_form": AssignIndividualForm(
+            playlist=playlist,
+            allow_reassignment=True,
+            auto_id="assign-collaborator-%s",
+        )
+        if can_administer
+        else None,
+        "available_yearterms": available_yearterms,
+        "selected_yearterm": yearterm,
+        "assign_courses_form": AssignCoursesForm(auto_id="assign-courses-%s"),
+    }
 
 
 @require_POST
@@ -680,9 +686,6 @@ def prepare_playlist_course_edit_form(request, playlist):
         )
     )
     if not courses:
-        logger.error(
-            f"There are no courses with dept {request.GET.get('dept')}, catalog number {request.GET.get('catalog_number')}, and yearterm {request.GET.get('yearterm')} associated with this playlist ({playlist.id})"
-        )
         return HttpResponse(status=404)
     course = courses[0]
     form = EditAssignedCoursesForm(
