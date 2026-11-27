@@ -13,7 +13,6 @@ from django.contrib.messages.storage.base import Message
 from django.core.exceptions import NON_FIELD_ERRORS
 from django.db import IntegrityError
 from django.db import transaction
-from django.db.models import Count
 from django.db.models import Prefetch
 from django.db.models import ProtectedError
 from django.db.models import Q
@@ -626,33 +625,6 @@ def _playlist_editing_context(request, playlist):
 
 @require_POST
 @playlist_write_required
-def render_course_assignment(request, playlist):
-    try:
-        parsed_data = json.loads(request.body)
-        semester = parsed_data["semester"]
-        year = parsed_data["year"]
-
-        # perform some minimal sanitation since we are passing this value into the db
-        if len(semester) > 1 or len(year) > 4:
-            return HttpResponseBadRequest()
-
-        return render_course_assignment_partial(request, playlist, f"{year}{semester}")
-
-    except Exception:
-        logger.exception("Failed to render course assignment information.")
-        return HttpResponseServerError()
-
-
-def render_course_assignment_partial(request, playlist, yearterm):
-    return render(
-        request,
-        "core/partials/course_assignment.html",
-        {"assigned_courses": get_assigned_courses(playlist, yearterm)},
-    )
-
-
-@require_POST
-@playlist_write_required
 def assign_playlist_to_course(request, playlist):
     form = AssignCoursesForm(request.POST, auto_id="assign-courses-%s")
     if not form.is_valid():
@@ -878,89 +850,6 @@ def scheduled_in_ic_programs(subject):
     )
 
 
-def get_course_access_summary(playlist):
-    """Courses that reach this playlist, and how many students that is.
-
-    The count mirrors Playlist.can_be_viewed_by exactly -- distinct users holding a
-    UserCourses row on a course assigned here whose yearterm is active. Counting
-    any other way would advertise access the app does not actually grant.
-    """
-    yearterms = active_yearterms()
-    # One grouped query rather than a COUNT per course: this runs on the playlist page for
-    # every editor, and a playlist assigned to a dozen sections paid a dozen round trips.
-    # distinct=True because a student enrolled in two sections of the same course is one
-    # person who can see it, which is what can_be_viewed_by would say.
-    counts = (
-        playlist.courses.filter(yearterm__in=yearterms)
-        .values("dept", "catalog_number")
-        .annotate(student_count=Count("usercourses__user", distinct=True))
-        .order_by("dept", "catalog_number")
-    )
-
-    sections = {}
-    for course in playlist.courses.filter(yearterm__in=yearterms).order_by(
-        "section_number"
-    ):
-        sections.setdefault((course.dept, course.catalog_number), []).append(
-            course.section_number
-        )
-
-    return [
-        {
-            "name": f"{row['dept']} {row['catalog_number']}",
-            "section_list": ", ".join(sections[(row["dept"], row["catalog_number"])]),
-            "section_count": len(sections[(row["dept"], row["catalog_number"])]),
-            "student_count": row["student_count"],
-        }
-        for row in counts
-    ]
-
-
-def playlist_members_context(request, playlist):
-    """Renders the assign individuals portion of the playlist assignment panel."""
-    accesses = (
-        PlaylistUserAccess.objects.filter(playlist=playlist)
-        .exclude(user_id=playlist.owner_id)
-        .select_related("user")
-        .order_by("playlist_role", "user__last_name", "user__username")
-    )
-    # A stray role integer degrades to its number instead of raising: migrations 0011 and
-    # 0014 and map_legacy_collection_role cover the values we know about (legacy auditor
-    # and TA), but this now renders on the playlist page itself, so an unknown one would
-    # take the whole page down rather than just this panel.
-    labels = {role.value: role.label for role in PlaylistRole}
-    members = [
-        {
-            "user": access.user,
-            "role": access.playlist_role,
-            "role_label": labels.get(access.playlist_role, str(access.playlist_role)),
-            "may_manage": playlist.can_grant_role(request.user, access.playlist_role),
-        }
-        for access in accesses
-    ]
-    return {
-        "playlist": playlist,
-        "members": members,
-        "course_access": get_course_access_summary(playlist),
-    }
-
-
-def render_playlist_members_roster(request, playlist):
-    """Renders the assigned individuals panel."""
-    return render(
-        request,
-        "core/partials/playlist_members_roster.html",
-        playlist_members_context(request, playlist),
-    )
-
-
-@require_GET
-@playlist_write_required
-def render_playlist_members(request, playlist):
-    """Render the playlist's membership roster."""
-    return render_playlist_members_roster(request, playlist)
-
-
 def _playlist_member_search(request, playlist, *, collaborators=False):
     query = request.POST.get("search", "").strip()
     users = User.objects.none()
@@ -1090,7 +979,7 @@ def remove_playlist_member(request, playlist, user_id):
         return _member_forbidden("Only the playlist owner can remove that person.")
 
     access.delete()
-    return render_playlist_members_roster(request, playlist)
+    return HttpResponse(status=204)
 
 
 def get_playlist_contents(playlist):

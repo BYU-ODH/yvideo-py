@@ -166,12 +166,10 @@ def test_object_ids_are_not_taken_from_the_request_body():
     expects_id_in_path = {
         "playlist_info": "playlist_id",
         "delete_playlist": "playlist_id",
-        "render_course_assignment": "playlist_id",
         "assign_playlist_to_course": "playlist_id",
         "update_playlist_course_sections": "playlist_id",
         "unassign_playlist_from_course": "playlist_id",
         "update_playlist_settings": "playlist_id",
-        "render_playlist_members": "playlist_id",
         "playlist_member_search": "playlist_id",
         "add_playlist_member": "playlist_id",
         "playlist_collaborator_search": "playlist_id",

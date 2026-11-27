@@ -26,11 +26,6 @@ urlpatterns = [
         name="delete_playlist",
     ),
     path(
-        "playlists/<int:playlist_id>/render-course-assignment/",
-        views.render_course_assignment,
-        name="render_course_assignment",
-    ),
-    path(
         "playlists/<int:playlist_id>/assign-course/",
         views.assign_playlist_to_course,
         name="assign_playlist_to_course",
@@ -59,11 +54,6 @@ urlpatterns = [
         "playlists/<int:playlist_id>/change-name/",
         views.update_playlist_name,
         name="update_playlist_name",
-    ),
-    path(
-        "playlists/<int:playlist_id>/members/",
-        views.render_playlist_members,
-        name="render_playlist_members",
     ),
     path(
         "playlists/<int:playlist_id>/members/search/",

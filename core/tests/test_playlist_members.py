@@ -15,10 +15,8 @@ from unittest.mock import patch
 from django.test import TestCase
 from django.urls import reverse
 
-from core.factories import CourseFactory
 from core.factories import PlaylistFactory
 from core.factories import PlaylistUserAccessFactory
-from core.factories import UserCourseFactory
 from core.factories import UserFactory
 from core.models import PlaylistRole
 from core.models import PlaylistUserAccess
@@ -118,19 +116,18 @@ class OwnerManagesEveryoneTests(PlaylistMemberTestCase):
                 self.assertEqual(response.content, b"")
                 self.assertEqual(self.role_of(newcomer), role)
 
-    def test_the_owner_can_read_an_individuals_current_role(self):
-        response = self.client.get(
-            reverse("render_playlist_members", args=[self.playlist.pk])
-        )
+    def test_the_owner_sees_individuals_and_collaborators_in_their_own_lists(self):
+        response = self.client.get(reverse("playlist_info", args=[self.playlist.pk]))
 
         self.assertEqual(response.status_code, 200)
-        member = next(
-            member
-            for member in response.context["members"]
-            if member["user"] == self.student
+        self.assertEqual(
+            [access.user for access in response.context["individual_accesses"]],
+            [self.student],
         )
-        self.assertEqual(member["role"], PlaylistRole.STUDENT)
-        self.assertEqual(self.role_of(self.student), PlaylistRole.STUDENT)
+        self.assertEqual(
+            [access.user for access in response.context["collaborator_accesses"]],
+            [self.collaborator],
+        )
 
     def test_the_owner_may_promote_a_student_to_collaborator(self):
         response = self.client.post(
@@ -141,7 +138,7 @@ class OwnerManagesEveryoneTests(PlaylistMemberTestCase):
 
     def test_the_owner_may_reassign_a_collaborator_as_a_student(self):
         removal = self.client.post(self.remove_url(self.collaborator))
-        self.assertEqual(removal.status_code, 200)
+        self.assertEqual(removal.status_code, 204)
         self.assertFalse(
             PlaylistUserAccess.objects.filter(
                 playlist=self.playlist, user=self.collaborator
@@ -155,7 +152,7 @@ class OwnerManagesEveryoneTests(PlaylistMemberTestCase):
 
     def test_the_owner_may_remove_a_collaborator(self):
         response = self.client.post(self.remove_url(self.collaborator))
-        self.assertNotContains(response, self.collaborator.get_full_name())
+        self.assertEqual(response.status_code, 204)
         self.assertFalse(
             PlaylistUserAccess.objects.filter(
                 user=self.collaborator, playlist=self.playlist
@@ -195,10 +192,12 @@ class OwnerManagesEveryoneTests(PlaylistMemberTestCase):
             playlist=self.playlist,
             playlist_role=PlaylistRole.COLLABORATOR,
         )
-        response = self.client.get(
-            reverse("render_playlist_members", args=[self.playlist.pk])
-        )
-        listed = [member["user"].pk for member in response.context["members"]]
+        response = self.client.get(reverse("playlist_info", args=[self.playlist.pk]))
+        listed = [
+            access.user_id
+            for access in response.context["individual_accesses"]
+            + response.context["collaborator_accesses"]
+        ]
         self.assertNotIn(self.owner.pk, listed)
 
     def test_the_owners_own_access_row_cannot_be_removed_as_a_membership(self):
@@ -246,7 +245,7 @@ class CollaboratorIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
 
     def test_a_collaborator_may_remove_a_student(self):
         response = self.client.post(self.remove_url(self.student))
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)
         self.assertFalse(
             PlaylistUserAccess.objects.filter(
                 user=self.student, playlist=self.playlist
@@ -302,26 +301,14 @@ class CollaboratorIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
         )
         self.assertEqual(response.status_code, 403)
 
-    def test_the_panel_leaves_rows_a_collaborator_may_not_touch_uneditable(self):
-        response = self.client.get(
-            reverse("render_playlist_members", args=[self.playlist.pk])
-        )
-        manageable = {
-            member["user"].pk: member["may_manage"]
-            for member in response.context["members"]
-        }
-        self.assertTrue(manageable[self.student.pk])
-        self.assertFalse(manageable[self.collaborator.pk])
-        self.assertFalse(manageable[self.other_collaborator.pk])
-
 
 class OutsidersAreRefusedTests(PlaylistMemberTestCase):
-    def test_a_student_member_cannot_reach_the_panel(self):
+    def test_a_student_member_does_not_see_who_else_has_access(self):
         login(self.client, self.student)
-        response = self.client.get(
-            reverse("render_playlist_members", args=[self.playlist.pk])
-        )
-        self.assertEqual(response.status_code, 403)
+        response = self.client.get(reverse("playlist_info", args=[self.playlist.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("individual_accesses", response.context)
+        self.assertNotContains(response, self.collaborator.get_full_name())
 
     def test_a_stranger_cannot_add_anyone(self):
         login(self.client, self.outsider)
@@ -430,37 +417,3 @@ class AddingSelectedPersonTests(PlaylistMemberTestCase):
             "Select a valid person from the search results.",
         )
         self.assertEqual(self.playlist.playlistuseraccess_set.count(), initial_count)
-
-
-class CourseAccessSummaryTests(PlaylistMemberTestCase):
-    """The summary answers "who can actually see this", so it has to match
-    can_be_viewed_by rather than count enrollments some looser way."""
-
-    def setUp(self):
-        super().setUp()
-        login(self.client, self.owner)
-
-    def summary(self):
-        response = self.client.get(
-            reverse("render_playlist_members", args=[self.playlist.pk])
-        )
-        return response.context["course_access"]
-
-    def test_an_unassigned_playlist_reports_no_courses(self):
-        self.assertEqual(self.summary(), [])
-
-    def test_enrolled_students_are_counted_once_per_course(self):
-        course = CourseFactory()
-        self.playlist.courses.add(course)
-        for _ in range(3):
-            UserCourseFactory(course=course)
-
-        summary = self.summary()
-        self.assertEqual(len(summary), 1)
-        self.assertEqual(summary[0]["name"], f"{course.dept} {course.catalog_number}")
-        self.assertEqual(summary[0]["student_count"], 3)
-
-    def test_a_course_from_an_inactive_term_is_not_listed(self):
-        self.playlist.courses.add(CourseFactory(yearterm="19951"))
-
-        self.assertEqual(self.summary(), [])

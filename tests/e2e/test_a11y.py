@@ -1109,16 +1109,6 @@ def test_admin_page_has_no_a11y_violations(
 # list should be provided in the following format: "template path": "reason for exclusion"
 # e.g. "core/partials/unaudited.html": "Never seen in UI"
 UNAUDITED_TEMPLATES = {
-    "core/partials/modals/playlist_members.html": (
-        "unreferenced: playlist_info uses separate individual and collaborator dialogs"
-    ),
-    "core/partials/modals/playlist_member_remove.html": (
-        "unreferenced: playlist_info uses modals/delete_assigned_individual.html instead"
-    ),
-    "core/partials/playlist_members_roster.html": (
-        "legacy roster endpoint response; the assignment UI reloads the playlist page "
-        "rather than displaying this fragment"
-    ),
     "core/partials/modals/delete_assigned_individual.html": (
         "the audited Demo Review Shelf has no direct assignments to open this dialog"
     ),
@@ -1207,7 +1197,6 @@ AUDITED_TEMPLATES = {
     "core/partials/modals/content_delete.html",
     "core/partials/modals/create_from_resource.html",
     "core/partials/modals/help_and_feedback.html",
-    "core/partials/modals/playlist_course_assignments.html",
     "core/partials/modals/playlist_delete.html",
     "core/partials/modals/add_assigned_individuals.html",
     "core/partials/modals/add_assigned_collaborators.html",
