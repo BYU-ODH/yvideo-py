@@ -1043,14 +1043,21 @@ def _assign_playlist_member(request, playlist, *, collaborator=False):
         auto_id=f"assign-{assignment_kind}-%s",
     )
     if form.is_valid():
-        playlist_role = (
-            PlaylistRole.COLLABORATOR if collaborator else PlaylistRole.STUDENT
-        )
-        PlaylistUserAccess.objects.update_or_create(
-            playlist=playlist,
-            user=form.cleaned_data["user_id"],
-            defaults={"playlist_role": playlist_role},
-        )
+        user = form.cleaned_data["user_id"]
+        if collaborator:
+            PlaylistUserAccess.objects.update_or_create(
+                playlist=playlist,
+                user=user,
+                defaults={"playlist_role": PlaylistRole.COLLABORATOR},
+            )
+        else:
+            # Never overwrite an existing role: a collaborator added by an overlapping
+            # request must not be turned into a student.
+            PlaylistUserAccess.objects.get_or_create(
+                playlist=playlist,
+                user=user,
+                defaults={"playlist_role": PlaylistRole.STUDENT},
+            )
         return HttpResponse(status=200)
     return render(
         request,
