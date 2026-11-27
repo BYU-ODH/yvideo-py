@@ -1,5 +1,8 @@
 <div id="assigned-courses-list">
     {% for course in assigned_courses %}
         {% include 'core/partials/course_assignment.html' %}
+
+    {% empty %}
+        <p>No courses assigned for this semester.</p>
     {% endfor %}
 </div>

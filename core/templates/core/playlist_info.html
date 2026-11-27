@@ -124,10 +124,12 @@
                                                 {% endfor %}
                                             </select>
                                         </div>
-                                        <div id="pnc-courses-header">
-                                            <p class="course-title playlist-assignment-item-lead-p">Course</p>
-                                            <p class="course-sections">Sections</p>
-                                        </div>
+                                        {% if assigned_courses %}
+                                            <div id="pnc-courses-header">
+                                                <p class="course-title playlist-assignment-item-lead-p">Course</p>
+                                                <p class="course-sections">Sections</p>
+                                            </div>
+                                        {% endif %}
                                         {% include "core/partials/course_assignment_list.html" %}
 
                                         <button class="blue-button playlist-assignment-button"
