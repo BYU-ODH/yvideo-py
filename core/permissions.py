@@ -33,7 +33,7 @@ def forbidden(message=FORBIDDEN_MESSAGE, content_type=None):
 
     content_type is worth setting for endpoints whose client shows the body to the user:
     it lets that client tell a message we wrote from an error page Django rendered, which
-    it otherwise cannot do and must not guess at (see playlistMembers.js failureMessage).
+    it otherwise cannot do and must not guess at.
     """
     return HttpResponseForbidden(message, content_type=content_type)
 

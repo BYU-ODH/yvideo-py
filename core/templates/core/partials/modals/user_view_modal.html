@@ -1,7 +1,7 @@
 {% load static %}
 
 <dialog id="{{ dialog_id }}"
-        class="user-view-modal"
+        class="user-view-modal {% block modal_classes %}{% endblock %}"
         aria-labelledby="{{ dialog_id }}-title">
     <header class="user-view-modal-header">
         <div class="user-view-modal-header-start">

@@ -74,17 +74,11 @@ def test_every_user_view_dialog_uses_the_shared_shell_and_behavior(
             [
                 ("#playlist-delete-modal", "#playlist-settings-delete"),
                 (
-                    "#playlist-course-assignments-modal",
-                    "#playlist-edit-course-assignment-button",
-                ),
-                (
                     "#add-video-dialog",
                     "[commandfor='add-video-dialog'][command='show-modal']",
                 ),
                 ("#select-resource-dialog", None),
                 ("#create-from-resource-modal", None),
-                ("#playlist-members-modal", "#playlist-manage-people-button"),
-                ("#playlist-member-remove-modal", None),
             ],
         ),
         (

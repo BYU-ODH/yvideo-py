@@ -6,6 +6,7 @@ inheritance, and file-key expiry.
 """
 
 from datetime import timedelta
+import json
 import time
 
 from django.test import TestCase
@@ -405,8 +406,9 @@ class SpoofingCarriesWriteAccessTests(TestCase):
 
     def test_a_spoofed_session_may_write_as_the_spoofed_instructor(self):
         response = self.client.post(
-            reverse("update_playlist_settings", args=[self.playlist.pk]),
-            data={"name": "Renamed while spoofing", "published": "", "archived": ""},
+            reverse("update_playlist_name", args=[self.playlist.pk]),
+            data=json.dumps({"new_value": "Renamed while spoofing"}),
+            content_type="application/json",
         )
 
         self.assertEqual(response.status_code, 200)

@@ -1,4 +1,3 @@
-from datetime import datetime
 from functools import wraps
 import json
 import logging
@@ -14,7 +13,6 @@ from django.contrib.messages.storage.base import Message
 from django.core.exceptions import NON_FIELD_ERRORS
 from django.db import IntegrityError
 from django.db import transaction
-from django.db.models import Count
 from django.db.models import Prefetch
 from django.db.models import ProtectedError
 from django.db.models import Q
@@ -37,14 +35,15 @@ from django.views.decorators.http import require_POST
 import requests
 import reversion
 
-from .forms import AddUserLookupForm
+from .forms import AssignCoursesForm
+from .forms import AssignIndividualForm
+from .forms import EditAssignedCoursesForm
 from .forms import LegalComplianceForm
 from .forms import PlaylistSettingsForm
 from .forms import ResourceIntakeRequestForm
 from .models import THUMBNAIL_COLORS
 from .models import THUMBNAIL_TEXT_COLORS
 from .models import Content
-from .models import Course
 from .models import Playlist
 from .models import PlaylistRole
 from .models import PlaylistUserAccess
@@ -58,6 +57,7 @@ from .models import Subtitle
 from .models import Thumbnail
 from .models import User
 from .models import UserCourses
+from .models import YearTerm
 from .models import active_yearterms
 from .permissions import content_read_required
 from .permissions import content_write_required
@@ -68,6 +68,7 @@ from .permissions import playlist_admin_required
 from .permissions import playlist_read_required
 from .permissions import playlist_write_required
 from .utils import display_yearterm
+from .utils import estimate_current_yearterm
 from .youtube_utils import get_or_create_youtube_resource
 from .youtube_utils import parse_youtube_video_id
 from .youtube_utils import youtube_video_id_for_content
@@ -500,34 +501,6 @@ def create_playlist(request):
         return HttpResponseBadRequest()
 
 
-def get_semester_and_year_options():
-    # we need a list of years for the year selector when assigning playlist to course
-    today = datetime.now()
-    start_year = today.year - 5
-    year_options = [
-        {"value": x, "current": x == today.year}
-        for x in range(start_year, (start_year + 10))
-    ]
-
-    # we need to make a guess about what semester it is to help the user
-    month = today.month
-    semester = None
-    if month < 5:
-        semester = 1  # winter
-    elif month == 5:
-        semester = 3  # spring
-    elif month == 6 or month == 7:
-        semester = 4  # summer
-    else:
-        semester = 5  # fall
-
-    return {
-        "year_options": year_options,
-        "semester": semester,
-        "yearterm": f"{today.year}{semester}",
-    }
-
-
 def get_assigned_courses(playlist, yearterm):
     courses = playlist.courses.filter(yearterm=yearterm)
     # aggregate the section numbers under the course title (course.dept course.catalog_number)
@@ -565,223 +538,238 @@ def get_assigned_courses(playlist, yearterm):
 @require_GET
 @playlist_read_required
 def playlist_info(request, playlist):
-    return render_playlist_info(request, playlist)
-
-
-def render_playlist_info(request, playlist):
     try:
         can_edit = playlist.can_be_edited_by(request.user)
         contents = Content.objects.filter(playlist=playlist).select_related("resource")
         if not can_edit:
             contents = contents.filter(published=True)
         contents = [(content, Thumbnail.for_item(content)) for content in contents]
-        year_and_semester = get_semester_and_year_options()
-        assigned_courses = get_assigned_courses(playlist, year_and_semester["yearterm"])
 
         context = {
             "playlist": playlist,
             "contents": contents,
             "thumbnail": Thumbnail.for_item(playlist) if can_edit else None,
             "can_edit": can_edit,
-            "can_administer": playlist.can_be_administered_by(request.user),
             "form": PlaylistSettingsForm(instance=playlist),
-            "year_options": year_and_semester["year_options"],
-            "semester": year_and_semester["semester"],
-            "assigned_courses": assigned_courses,
             "breadcrumbs": breadcrumb_trail((playlist.name, None)),
         }
+        if can_edit:
+            context_or_error = _playlist_editing_context(request, playlist)
+            if isinstance(context_or_error, HttpResponse):
+                return context_or_error
+            context.update(context_or_error)
         return render(request, "core/playlist_info.html", context)
     except Exception as e:
         logger.error(f"Failed to retrieve playlist info. Exception: {e}")
         return HttpResponseServerError()
 
 
-@require_GET
-@playlist_write_required
-def display_playlist_settings(request, playlist):
-    try:
-        form = PlaylistSettingsForm(instance=playlist)
-        year_and_semester = get_semester_and_year_options()
+def _playlist_editing_context(request, playlist):
+    """The course and people panels, which only editors see."""
+    now = timezone.now()
 
-        context = {
-            "playlist": playlist,
-            "form": form,
-            "thumbnail": Thumbnail.for_item(playlist),
-            "semester": year_and_semester["semester"],
-            "year_options": year_and_semester["year_options"],
-        }
-        return render(request, "core/partials/playlist_settings.html", context)
-    except Exception as e:
-        logger.error(f"Failed to render playlist settings. Exception: {e}")
-        return HttpResponseServerError()
+    # If the user refreshes the page after selecting yearterm, we want to preserve that selection
+    yearterm = request.GET.get("yearterm")
 
+    yearterms = list(YearTerm.objects.all())
+    if yearterm is None:
+        for term in yearterms:
+            if term.start_date_time <= now < term.end_date_time:
+                yearterm = term.yearterm
+                break
+        if yearterm is None:
+            yearterm = estimate_current_yearterm(timezone.localdate(now))
 
-@require_POST
-@playlist_write_required
-def render_course_assignment(request, playlist):
-    try:
-        parsed_data = json.loads(request.body)
-        semester = parsed_data["semester"]
-        year = parsed_data["year"]
+    if not re.fullmatch(r"[0-9]{4}[1345]", yearterm):
+        return HttpResponseBadRequest("Select a valid semester.")
+    available_yearterms = [
+        {"value": value, "label": display_yearterm(value)}
+        for value in sorted({term.yearterm for term in yearterms} | {yearterm})
+    ]
 
-        # perform some minimal sanitation since we are passing this value into the db
-        if len(semester) > 1 or len(year) > 4:
-            return HttpResponseBadRequest()
-
-        return render_course_assignment_partial(request, playlist, f"{year}{semester}")
-
-    except Exception as e:
-        logger.error(f"Failed to render course assignment information. Exception: {e}")
-        return HttpResponseServerError()
-
-
-def render_course_assignment_partial(request, playlist, yearterm):
-    return render(
-        request,
-        "core/partials/course_assignment.html",
-        {"assigned_courses": get_assigned_courses(playlist, yearterm)},
+    individual_accesses = []
+    collaborator_accesses = []
+    accesses = (
+        PlaylistUserAccess.objects.filter(playlist=playlist)
+        .exclude(user_id=playlist.owner_id)
+        .select_related("user")
+        .order_by("user__last_name", "user__username")
     )
+    for access in accesses:
+        if access.playlist_role == PlaylistRole.STUDENT:
+            individual_accesses.append(access)
+        elif access.playlist_role == PlaylistRole.COLLABORATOR:
+            collaborator_accesses.append(access)
+
+    can_administer = playlist.can_be_administered_by(request.user)
+    return {
+        "can_administer": can_administer,
+        "assigned_courses": get_assigned_courses(playlist, yearterm),
+        "individual_accesses": individual_accesses,
+        "collaborator_accesses": collaborator_accesses,
+        "assign_individual_form": AssignIndividualForm(
+            playlist=playlist, auto_id="assign-individual-%s"
+        ),
+        "assign_collaborator_form": AssignIndividualForm(
+            playlist=playlist,
+            allow_reassignment=True,
+            auto_id="assign-collaborator-%s",
+        )
+        if can_administer
+        else None,
+        "available_yearterms": available_yearterms,
+        "selected_yearterm": yearterm,
+        "assign_courses_form": AssignCoursesForm(auto_id="assign-courses-%s"),
+    }
 
 
 @require_POST
 @playlist_write_required
 def assign_playlist_to_course(request, playlist):
-    # first check if the course already exists. if so, add the playlist to that course.
-    # otherwise, create the course and then add the playlist
+    form = AssignCoursesForm(request.POST, auto_id="assign-courses-%s")
+    if not form.is_valid():
+        return render(
+            request,
+            "core/partials/assign_courses_to_playlist_form.html",
+            {
+                "playlist": playlist,
+                "assign_courses_form": form,
+                "dialog_id": "add-assigned-course-modal",
+            },
+            status=400,
+        )
+
     try:
-        parsed_data = json.loads(request.body)
-        if (
-            "dept" not in parsed_data
-            or "catalog_number" not in parsed_data
-            or "sections" not in parsed_data
-            or "year" not in parsed_data
-            or "semester" not in parsed_data
-        ):
-            logger.error(
-                "Failed to assign course to playlist because of insufficient data provided"
-            )
-            return HttpResponseBadRequest()
-
-        dept = parsed_data["dept"]
-        catalog_number = parsed_data["catalog_number"]
-        section_numbers = parsed_data["sections"]
-        yearterm = f"{parsed_data['year']}{parsed_data['semester']}"
-        with transaction.atomic():
-            for section_number in section_numbers:
-                existing_course_filter = Course.objects.filter(
-                    dept=dept,
-                    catalog_number=catalog_number,
-                    section_number=section_number,
-                    yearterm=yearterm,
-                )
-                if existing_course_filter.count() < 1:
-                    existing_course = Course.objects.create(
-                        dept=dept,
-                        catalog_number=catalog_number,
-                        section_number=section_number,
-                        yearterm=yearterm,
-                    )
-                else:
-                    if existing_course_filter.count() > 1:
-                        logger.error(
-                            f"More than one course was returned when assigning a playlist ({playlist}) to a course. Assigning to the first result"
-                        )
-                    existing_course = existing_course_filter.first()
-                playlist.courses.add(existing_course)
-                playlist.save()
-        return render_course_assignment_partial(request, playlist, yearterm)
-
-    except Exception as e:
-        logger.error(f"Failed to assign course to playlist. Exception: {e}")
+        form.save(playlist=playlist)
+    except Exception:
+        logger.exception("Failed to assign courses to playlist %s", playlist.pk)
         return HttpResponseServerError()
+    return HttpResponse(status=204)
+
+
+@require_GET
+@playlist_write_required
+def prepare_playlist_course_edit_form(request, playlist):
+    courses = list(
+        playlist.courses.filter(
+            dept=request.GET.get("dept"),
+            catalog_number=request.GET.get("catalog_number"),
+            yearterm=request.GET.get("yearterm"),
+        )
+    )
+    if not courses:
+        return HttpResponse(status=404)
+    course = courses[0]
+    form = EditAssignedCoursesForm(
+        initial={
+            "dept": course.dept,
+            "catalog_number": course.catalog_number,
+            "sections": ", ".join(course.section_number for course in courses),
+            "yearterm": course.yearterm,
+            "original_dept": course.dept,
+            "original_catalog_number": course.catalog_number,
+        },
+        auto_id="edit-courses-%s",
+    )
+    return render_edit_playlist_courses_form(request, playlist, form)
 
 
 @require_POST
 @playlist_write_required
 def update_playlist_course_sections(request, playlist):
-    try:
-        parsed_data = json.loads(request.body)
-        if (
-            "sections" not in parsed_data
-            or "dept" not in parsed_data
-            or "catalog_number" not in parsed_data
-            or "semester" not in parsed_data
-            or "year" not in parsed_data
-        ):
-            logger.error(
-                "Failed to update course sections because of insufficient data provided"
-            )
-            return HttpResponseBadRequest()
-        new_sections_list = parsed_data["sections"]
-        dept = parsed_data["dept"]
-        catalog_number = parsed_data["catalog_number"]
-        yearterm = f"{parsed_data['year']}{parsed_data['semester']}"
-        courses = Course.objects.filter(
-            dept=dept, catalog_number=catalog_number, yearterm=yearterm
+    form = EditAssignedCoursesForm(request.POST, auto_id="edit-courses-%s")
+    if not form.is_valid():
+        return render_edit_playlist_courses_form(request, playlist, form, status=400)
+
+    original_course_ids = set(
+        playlist.courses.filter(
+            dept=form.cleaned_data["original_dept"],
+            catalog_number=form.cleaned_data["original_catalog_number"],
+            yearterm=form.cleaned_data["yearterm"],
+        ).values_list("pk", flat=True)
+    )
+    if not original_course_ids:
+        form.add_error(
+            None,
+            "This course is not assigned to this playlist. If you believe this is an error, please refresh the page and try again or re-assign the course.",
         )
+        return render_edit_playlist_courses_form(request, playlist, form, status=400)
 
+    # save new additions and then remove any missing sections
+    try:
         with transaction.atomic():
-            # it is possible a course with a provided section_number doesn't exist yet. if that is true,
-            # create it
-            existing_section_numbers = []
-            for course in courses:
-                existing_section_numbers.append(course.section_number)
-            for new_section_number in new_sections_list:
-                if new_section_number not in existing_section_numbers:
-                    Course.objects.create(
-                        dept=dept,
-                        catalog_number=catalog_number,
-                        yearterm=yearterm,
-                        section_number=new_section_number,
-                    )
-
-            # Associate the provided sections with the playlist.
-            # We could go through and figure out exactly which should be removed and which should be added,
-            # but it is probably more robust to simply remove all associations for this dept, catalog_number, and yearterm
-            # and then add all the sections provided by the user.
-            playlist.courses.remove(*courses)
-            new_courses = Course.objects.filter(
-                dept=dept,
-                catalog_number=catalog_number,
-                yearterm=yearterm,
-                section_number__in=new_sections_list,
+            courses = form.save(playlist=playlist)
+            playlist.courses.remove(
+                *(original_course_ids - {course.pk for course in courses})
             )
-            playlist.courses.add(*new_courses)
-
-        return HttpResponse()
-
-    except Exception as e:
-        logger.error(f"Failed to update course sections. Exception: {e}")
+    except Exception:
+        logger.exception(
+            "Failed to update assigned courses for playlist %s", playlist.pk
+        )
         return HttpResponseServerError()
+
+    return HttpResponse(status=204)
+
+
+def render_edit_playlist_courses_form(request, playlist, form, *, status=200):
+    return render(
+        request,
+        "core/partials/assign_courses_to_playlist_form.html",
+        {
+            "playlist": playlist,
+            "assign_courses_form": form,
+            "editing_courses": True,
+            "course_form_prefix": "edit-courses",
+            "dialog_id": "edit-assigned-course",
+        },
+        status=status,
+    )
 
 
 @require_POST
 @playlist_write_required
 def unassign_playlist_from_course(request, playlist):
+    error_message = (
+        "The course could not be removed from the playlist. Please try again."
+    )
     try:
-        parsed_data = json.loads(request.body)
-        if (
-            "dept" not in parsed_data
-            or "catalog_number" not in parsed_data
-            or "semester" not in parsed_data
-            or "year" not in parsed_data
-        ):
-            logger.error(
-                "Failed to remove playlist from course because of insufficient data"
-            )
-            return HttpResponseBadRequest()
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        logger.error(
+            "Failed to unassign course from playlist because of invalid JSON in request body"
+        )
+        messages.error(request, error_message)
+        return HttpResponseBadRequest()
+    if not isinstance(data, dict) or not all(
+        isinstance(data.get(field), str) and data[field]
+        for field in ("dept", "catalog_number", "yearterm")
+    ):
+        missing_data_msg = "Failed to unassign course from playlist because of a missing dept, catalog_number and/or yearterm value"
+        logger.error(missing_data_msg)
+        messages.error(request, error_message)
+        return HttpResponseBadRequest()
+    if not re.fullmatch(r"[0-9]{4}[1345]", data["yearterm"]):
+        bad_yearterm_msg = "Failed to unassign course from playlist because of an invalid yearterm value"
+        logger.error(bad_yearterm_msg)
+        messages.error(request, error_message)
+        return HttpResponseBadRequest()
 
-        courses = playlist.courses.all().filter(
-            dept=parsed_data["dept"],
-            catalog_number=parsed_data["catalog_number"],
-            yearterm=f"{parsed_data['year']}{parsed_data['semester']}",
+    try:
+        courses = playlist.courses.filter(
+            dept=data["dept"],
+            catalog_number=data["catalog_number"],
+            yearterm=data["yearterm"],
         )
         playlist.courses.remove(*courses)
-        return HttpResponse()
-
-    except Exception as e:
-        logger.error(f"Failed to remove playlist assigned to course. Exception: {e}")
+    except Exception:
+        logger.exception("Failed to unassign courses from playlist %s", playlist.pk)
+        messages.error(request, error_message)
         return HttpResponseServerError()
+    messages.success(
+        request,
+        f"{data['dept']} {data['catalog_number']} and its sections were removed from the playlist.",
+    )
+    return HttpResponse(status=204)
 
 
 @require_POST
@@ -790,7 +778,6 @@ def update_playlist_settings(request, playlist):
     form = PlaylistSettingsForm(request.POST)
     if form.is_valid():
         try:
-            playlist.name = form.cleaned_data["name"]
             playlist.archived = form.cleaned_data["archived"]
             if form.cleaned_data["archived"]:
                 playlist.published = False
@@ -800,15 +787,56 @@ def update_playlist_settings(request, playlist):
             if request.user.is_ic_editor:
                 playlist.is_ic = form.cleaned_data["is_ic"]
             playlist.save()
-            messages.success(request, "Playlist settings saved.")
-            return render_playlist_info(request, playlist)
-        except Exception as e:
-            logger.error(
-                f"An error occured while attempting to update playlist settings. {e}"
+            return render(
+                request,
+                "core/partials/playlist_settings.html",
+                {
+                    "playlist": playlist,
+                    "form": PlaylistSettingsForm(instance=playlist),
+                    "can_edit": playlist.can_be_edited_by(request.user),
+                },
             )
+        except Exception:
+            logger.exception("Failed to update settings for playlist %s", playlist.pk)
             return HttpResponseServerError()
     else:
         return HttpResponseBadRequest()
+
+
+@require_POST
+@playlist_write_required
+def update_playlist_name(request, playlist):
+    # see utils.js::setupInPlaceFieldEdit
+    try:
+        new_name = json.loads(request.body)["new_value"]
+    except (json.JSONDecodeError, UnicodeDecodeError, KeyError, TypeError):
+        return HttpResponseBadRequest()
+    if not isinstance(new_name, str):
+        return HttpResponseBadRequest()
+    new_name = new_name.strip()
+    # Messages go in the body because the page does not reload; utils.js shows text/plain bodies.
+    if new_name == "":
+        return HttpResponseBadRequest(
+            "A playlist name cannot be blank.", content_type="text/plain"
+        )
+    playlist.name = new_name[:255]
+
+    try:
+        # Its own savepoint, so a duplicate name doesn't break any enclosing transaction.
+        with transaction.atomic():
+            playlist.save(update_fields=["name"])
+        return HttpResponse(status=200)
+    except IntegrityError:
+        return HttpResponseBadRequest(
+            "The playlist owner already has a playlist with that name.",
+            content_type="text/plain",
+        )
+    except Exception:
+        logger.exception("Failed to rename playlist %s", playlist.pk)
+        return HttpResponseServerError(
+            "The playlist could not be renamed. Please try again.",
+            content_type="text/plain",
+        )
 
 
 def scheduled_in_ic_programs(subject):
@@ -822,155 +850,13 @@ def scheduled_in_ic_programs(subject):
     )
 
 
-GRANTABLE_PLAYLIST_ROLES = (
-    PlaylistRole.COLLABORATOR,
-    PlaylistRole.STUDENT,
-)
-
-PLAYLIST_ROLE_DESCRIPTIONS = {
-    PlaylistRole.COLLABORATOR: (
-        "Co-instructor or TA. Can edit this playlist and its videos, but cannot "
-        "delete it or manage people."
-    ),
-    PlaylistRole.STUDENT: "Can watch published videos. Cannot make changes.",
-}
-
-
-def grantable_roles_for(playlist, user):
-    """The roles `user` may hand out on `playlist`, in the order the picker shows them."""
-    return [
-        {
-            "value": role.value,
-            "label": role.label,
-            "description": PLAYLIST_ROLE_DESCRIPTIONS[role],
-        }
-        for role in GRANTABLE_PLAYLIST_ROLES
-        if playlist.can_grant_role(user, role)
-    ]
-
-
-def get_course_access_summary(playlist):
-    """Courses that reach this playlist, and how many students that is.
-
-    The count mirrors Playlist.can_be_viewed_by exactly -- distinct users holding a
-    UserCourses row on a course assigned here whose yearterm is active. Counting
-    any other way would advertise access the app does not actually grant.
-    """
-    yearterms = active_yearterms()
-    # One grouped query rather than a COUNT per course: this runs on the playlist page for
-    # every editor, and a playlist assigned to a dozen sections paid a dozen round trips.
-    # distinct=True because a student enrolled in two sections of the same course is one
-    # person who can see it, which is what can_be_viewed_by would say.
-    counts = (
-        playlist.courses.filter(yearterm__in=yearterms)
-        .values("dept", "catalog_number")
-        .annotate(student_count=Count("usercourses__user", distinct=True))
-        .order_by("dept", "catalog_number")
-    )
-
-    sections = {}
-    for course in playlist.courses.filter(yearterm__in=yearterms).order_by(
-        "section_number"
-    ):
-        sections.setdefault((course.dept, course.catalog_number), []).append(
-            course.section_number
-        )
-
-    return [
-        {
-            "name": f"{row['dept']} {row['catalog_number']}",
-            "section_list": ", ".join(sections[(row["dept"], row["catalog_number"])]),
-            "section_count": len(sections[(row["dept"], row["catalog_number"])]),
-            "student_count": row["student_count"],
-        }
-        for row in counts
-    ]
-
-
-def playlist_members_context(request, playlist):
-    """Everything the Manage People panel renders.
-
-    Each row carries its own may_manage flag rather than a single page-level one: an
-    owner may touch every row, but a collaborator may touch only the read-only ones, and deciding
-    that here keeps the template and the endpoints agreeing on one answer.
-    """
-    accesses = (
-        PlaylistUserAccess.objects.filter(playlist=playlist)
-        .exclude(user_id=playlist.owner_id)
-        .select_related("user")
-        .order_by("playlist_role", "user__last_name", "user__username")
-    )
-    # A stray role integer degrades to its number instead of raising: migrations 0011 and
-    # 0014 and map_legacy_collection_role cover the values we know about (legacy auditor
-    # and TA), but this now renders on the playlist page itself, so an unknown one would
-    # take the whole page down rather than just this panel.
-    labels = {role.value: role.label for role in PlaylistRole}
-    members = [
-        {
-            "user": access.user,
-            "role": access.playlist_role,
-            "role_label": labels.get(access.playlist_role, str(access.playlist_role)),
-            "may_manage": playlist.can_grant_role(request.user, access.playlist_role),
-        }
-        for access in accesses
-    ]
-    return {
-        "playlist": playlist,
-        "members": members,
-        "grantable_roles": grantable_roles_for(playlist, request.user),
-        "default_role": PlaylistRole.STUDENT.value,
-        "course_access": get_course_access_summary(playlist),
-    }
-
-
-def render_playlist_members_list(request, playlist):
-    return render(
-        request,
-        "core/partials/playlist_members_list.html",
-        playlist_members_context(request, playlist),
-    )
-
-
-def render_playlist_members_roster(request, playlist):
-    """Just the rows -- the only part an add or remove changes.
-
-    Returning the whole panel instead would replace the status live region along with
-    it, and a live region swapped out in the same breath as the message it should be
-    announcing does not announce.
-    """
-    return render(
-        request,
-        "core/partials/playlist_members_roster.html",
-        playlist_members_context(request, playlist),
-    )
-
-
-@require_GET
-@playlist_write_required
-def render_playlist_members(request, playlist):
-    """The Manage People panel, fetched when the dialog opens.
-
-    Deliberately not rendered with the playlist page: the roster and the course-access
-    counts are queries every editor would pay on every visit for a dialog most visits
-    never open. Fetching on open also means the panel reflects the database rather than
-    whenever the page was last loaded.
-    """
-    return render_playlist_members_list(request, playlist)
-
-
-# Substring matching over every user means one character returns a page of real names and
-# NetIDs, which is a directory to scrape rather than a search. Two is still short enough
-# for anyone who knows who they are looking for.
-MEMBER_SEARCH_MINIMUM_LENGTH = 2
-
-
-@require_POST
-@playlist_write_required
-def playlist_member_search(request, playlist):
-    """Existing users matching the typed text, minus everyone already on the playlist."""
+def _playlist_member_search(request, playlist, *, collaborators=False):
     query = request.POST.get("search", "").strip()
     users = User.objects.none()
-    if len(query) >= MEMBER_SEARCH_MINIMUM_LENGTH:
+    if query:
+        assigned = PlaylistUserAccess.objects.filter(playlist=playlist)
+        if collaborators:
+            assigned = assigned.filter(playlist_role=PlaylistRole.COLLABORATOR)
         users = (
             User.objects.filter(
                 Q(first_name__icontains=query)
@@ -979,28 +865,34 @@ def playlist_member_search(request, playlist):
                 | Q(netid__icontains=query)
             )
             .exclude(pk=playlist.owner_id)
-            .exclude(playlistuseraccess__playlist=playlist)
+            .exclude(pk__in=assigned.values("user_id"))
             .order_by("last_name", "username")[:25]
         )
     return render(
         request,
-        "core/partials/playlist_member_options_for_select.html",
+        "core/partials/playlist_member_search_results.html",
         {
             "users": users,
             "query": query,
-            # So a one-character query says "keep typing" rather than "No matches",
-            # which would read as "this person is not in Y-Video" and send someone to
-            # the directory lookup for someone who is already here.
-            "query_too_short": 0 < len(query) < MEMBER_SEARCH_MINIMUM_LENGTH,
         },
     )
 
 
+@require_POST
+@playlist_write_required
+def playlist_member_search(request, playlist):
+    """Find people who do not already have a direct assignment."""
+    return _playlist_member_search(request, playlist)
+
+
+@require_POST
+@playlist_admin_required
+def playlist_collaborator_search(request, playlist):
+    """Include existing students so owners can promote them to collaborators."""
+    return _playlist_member_search(request, playlist, collaborators=True)
+
+
 MEMBER_TEXT_CONTENT_TYPE = "text/plain; charset=utf-8"
-
-
-def _member_error(message):
-    return HttpResponseBadRequest(message, content_type=MEMBER_TEXT_CONTENT_TYPE)
 
 
 def _member_forbidden(message):
@@ -1027,107 +919,56 @@ def _member_access_or_404(playlist, user_id):
     )
 
 
-def _resolve_member_to_add(request):
-    """The user being added, either picked from the search results or looked up by id.
-
-    Returns (user, error_message, warning). The lookup form provisions from BYU's
-    directory, so a collaborator who has never signed in to Y-Video can still be given a role
-    before the term starts -- the reason the picker accepts a raw NetID at all.
-
-    The warning is the form's enrollment_warning: a provisioned account whose enrollment
-    could not be synced still gets the role, but its course-based access will be wrong
-    until the sync catches up. The admin surfaces this and so must we, or the person who
-    added them learns about it from a student who cannot see the playlist.
-    """
-    user_id = request.POST.get("user_id", "").strip()
-    if user_id:
-        user = User.objects.filter(pk=user_id).first()
-        if user is None:
-            return None, "That person no longer has an account.", None
-        return user, None, None
-
-    identifier = request.POST.get("identifier", "").strip()
-    if not identifier:
-        return None, "Search for a person, or type a NetID or 9-digit BYU ID.", None
-
-    form = AddUserLookupForm({"identifier": identifier})
-    if not form.is_valid():
-        return (
-            None,
-            " ".join(form.errors.get("identifier", ["That lookup failed."])),
-            None,
-        )
-    return form.resolved_user, None, getattr(form, "enrollment_warning", None)
+def _assign_playlist_member(request, playlist, *, collaborator=False):
+    assignment_kind = "collaborator" if collaborator else "individual"
+    form = AssignIndividualForm(
+        request.POST,
+        playlist=playlist,
+        allow_reassignment=collaborator,
+        auto_id=f"assign-{assignment_kind}-%s",
+    )
+    if form.is_valid():
+        user = form.cleaned_data["user_id"]
+        if collaborator:
+            PlaylistUserAccess.objects.update_or_create(
+                playlist=playlist,
+                user=user,
+                defaults={"playlist_role": PlaylistRole.COLLABORATOR},
+            )
+        else:
+            # Never overwrite an existing role: a collaborator added by an overlapping
+            # request must not be turned into a student.
+            PlaylistUserAccess.objects.get_or_create(
+                playlist=playlist,
+                user=user,
+                defaults={"playlist_role": PlaylistRole.STUDENT},
+            )
+        return HttpResponse(status=204)
+    return render(
+        request,
+        "core/partials/assign_individual_to_playlist_form.html",
+        {
+            "playlist": playlist,
+            "assign_individual_form": form,
+            "assignment_kind": assignment_kind,
+            "dialog_id": f"add-assigned-{assignment_kind}-modal",
+        },
+        status=400,
+    )
 
 
 @require_POST
 @playlist_write_required
 def add_playlist_member(request, playlist):
-    try:
-        role = PlaylistRole(int(request.POST.get("role", "")))
-    except (TypeError, ValueError):
-        return _member_error("Choose a role.")
-    if role not in GRANTABLE_PLAYLIST_ROLES:
-        return _member_error("Choose a role.")
-    if not playlist.can_grant_role(request.user, role):
-        return _member_forbidden("Only the playlist owner can grant that role.")
-
-    user, error, warning = _resolve_member_to_add(request)
-    if error:
-        return _member_error(error)
-
-    if user.pk == playlist.owner_id:
-        return _member_error(
-            f"{user.get_full_name() or user.username} owns this playlist already."
-        )
-
-    _, created = PlaylistUserAccess.objects.get_or_create(
-        user=user,
-        playlist=playlist,
-        defaults={"playlist_role": role},
-    )
-    if not created:
-        return _member_error(
-            f"{user.get_full_name() or user.username} already has a role here. "
-            "Change it in the list above."
-        )
-
-    response = render_playlist_members_roster(request, playlist)
-    if warning:
-        # A header rather than the body, because the body is the roster fragment the
-        # client swaps in. The client appends this to its own "added" announcement.
-        # Flattened first: Django rejects a header containing a newline outright, and a
-        # 500 here would lose the grant's confirmation over an advisory message.
-        response["X-Member-Warning"] = " ".join(warning.split())
-    return response
+    """Assign a student without changing any existing direct membership."""
+    return _assign_playlist_member(request, playlist)
 
 
 @require_POST
-@playlist_write_required
-def update_playlist_member_role(request, playlist, user_id):
-    access = _member_access_or_404(playlist, user_id)
-    try:
-        new_role = PlaylistRole(int(request.POST.get("role", "")))
-    except (TypeError, ValueError):
-        return _member_error("Choose a role.")
-    if new_role not in GRANTABLE_PLAYLIST_ROLES:
-        return _member_error("Choose a role.")
-
-    # Both ends, because demoting a collaborator is revoking a collaborator grant.
-    # Checking only the new role would let a collaborator quietly strip another.
-    if not (
-        playlist.can_grant_role(request.user, access.playlist_role)
-        and playlist.can_grant_role(request.user, new_role)
-    ):
-        return _member_forbidden("Only the playlist owner can change that role.")
-
-    access.playlist_role = new_role
-    access.save(update_fields=["playlist_role", "updated_at"])
-    return HttpResponse(
-        f"{access.user.get_full_name() or access.user.username} is now "
-        f"{new_role.label}.",
-        content_type="text/plain; charset=utf-8",
-    )
+@playlist_admin_required
+def add_playlist_collaborator(request, playlist):
+    """Assign editing access, promoting an existing student if necessary."""
+    return _assign_playlist_member(request, playlist, collaborator=True)
 
 
 @require_POST
@@ -1138,7 +979,7 @@ def remove_playlist_member(request, playlist, user_id):
         return _member_forbidden("Only the playlist owner can remove that person.")
 
     access.delete()
-    return render_playlist_members_roster(request, playlist)
+    return HttpResponse(status=204)
 
 
 def get_playlist_contents(playlist):
@@ -1349,9 +1190,24 @@ def render_content_settings_form(request, content):
         return HttpResponseServerError()
 
 
-@require_POST
+@require_http_methods(["POST", "PATCH"])
 @content_write_required
 def update_content(request, content):
+    if request.method == "PATCH":
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return HttpResponse(status=400)
+        if (
+            not isinstance(data, dict)
+            or set(data) != {"published"}
+            or not isinstance(data["published"], bool)
+        ):
+            return HttpResponse(status=400)
+        content.published = data["published"]
+        content.save(update_fields=["published", "updated_at"])
+        return HttpResponse(status=204)
+
     try:
         data = json.loads(request.body)
         content.title = data["title"]

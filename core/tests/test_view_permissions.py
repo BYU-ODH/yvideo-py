@@ -166,16 +166,14 @@ def test_object_ids_are_not_taken_from_the_request_body():
     expects_id_in_path = {
         "playlist_info": "playlist_id",
         "delete_playlist": "playlist_id",
-        "render_course_assignment": "playlist_id",
         "assign_playlist_to_course": "playlist_id",
         "update_playlist_course_sections": "playlist_id",
         "unassign_playlist_from_course": "playlist_id",
-        "display_playlist_settings": "playlist_id",
         "update_playlist_settings": "playlist_id",
-        "render_playlist_members": "playlist_id",
         "playlist_member_search": "playlist_id",
         "add_playlist_member": "playlist_id",
-        "update_playlist_member_role": "playlist_id",
+        "playlist_collaborator_search": "playlist_id",
+        "add_playlist_collaborator": "playlist_id",
         "remove_playlist_member": "playlist_id",
         "create_content": "playlist_id",
         "create_content_from_youtube_url": "playlist_id",
@@ -201,3 +199,11 @@ def test_object_ids_are_not_taken_from_the_request_body():
         if f"<int:{id_kwarg}>" not in (routes.get(name) or "")
     ]
     assert not missing, "\n  ".join(missing)
+
+
+@pytest.mark.parametrize(
+    "view_name", ["playlist_collaborator_search", "add_playlist_collaborator"]
+)
+def test_collaborator_assignment_requires_playlist_administration(view_name):
+    views = {pattern.name: pattern.callback for _, pattern in core_url_patterns()}
+    assert views[view_name].permission_check == "playlist_admin"

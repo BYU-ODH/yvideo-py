@@ -1,25 +1,22 @@
-"""The Manage People endpoints (#361).
+"""Playlist assignment endpoints and their permission boundaries.
 
-The rule under test throughout is Playlist.can_grant_role: an owner hands out any role,
-a collaborator hands out only read-only ones. The cases that matter are the ones
-where a collaborator reaches past that -- promoting, demoting, or removing someone at their own
-level -- because the decorator alone lets them through and only the inner check stops
-them.
+Student and collaborator assignments use separate endpoints. Owners may grant either
+role; collaborators may manage only students and cannot overwrite existing memberships
+through the student-assignment endpoint.
 
 `login` rather than force_login, for the SessionRefresh reason spelled out in
 test_permissions_regressions.py.
 """
 
+import re
 import time
 from unittest.mock import patch
 
 from django.test import TestCase
 from django.urls import reverse
 
-from core.factories import CourseFactory
 from core.factories import PlaylistFactory
 from core.factories import PlaylistUserAccessFactory
-from core.factories import UserCourseFactory
 from core.factories import UserFactory
 from core.models import PlaylistRole
 from core.models import PlaylistUserAccess
@@ -53,8 +50,8 @@ class PlaylistMemberTestCase(TestCase):
     def add_url(self):
         return reverse("add_playlist_member", args=[self.playlist.pk])
 
-    def role_url(self, user):
-        return reverse("update_playlist_member_role", args=[self.playlist.pk, user.pk])
+    def collaborator_add_url(self):
+        return reverse("add_playlist_collaborator", args=[self.playlist.pk])
 
     def remove_url(self, user):
         return reverse("remove_playlist_member", args=[self.playlist.pk, user.pk])
@@ -65,38 +62,97 @@ class PlaylistMemberTestCase(TestCase):
         ).playlist_role
 
 
+class PlaylistAssignmentListTests(PlaylistMemberTestCase):
+    def playlist_page(self, user):
+        login(self.client, user)
+        response = self.client.get(reverse("playlist_info", args=[self.playlist.pk]))
+        self.assertEqual(response.status_code, 200)
+        return response
+
+    def test_empty_collaborators_do_not_show_students(self):
+        PlaylistUserAccess.objects.filter(
+            playlist=self.playlist, playlist_role=PlaylistRole.COLLABORATOR
+        ).delete()
+
+        response = self.playlist_page(self.owner)
+
+        self.assertContains(response, "No collaborators assigned.")
+        self.assertNotContains(response, "No individuals assigned.")
+        self.assertContains(
+            response, f'data-remove-url="{self.remove_url(self.student)}"', count=1
+        )
+
+    def test_removal_buttons_preserve_membership_permissions(self):
+        for viewer in (self.owner, self.collaborator):
+            response = self.playlist_page(viewer)
+            buttons = re.findall(r"<button\b[^>]*>", response.content.decode())
+            for member in (self.student, self.collaborator):
+                with self.subTest(viewer=viewer, member=member):
+                    button = next(
+                        button
+                        for button in buttons
+                        if f'data-remove-url="{self.remove_url(member)}"' in button
+                    )
+                    self.assertEqual(
+                        "disabled" in button,
+                        viewer == self.collaborator and member == self.collaborator,
+                    )
+
+
 class OwnerManagesEveryoneTests(PlaylistMemberTestCase):
     def setUp(self):
         super().setUp()
         login(self.client, self.owner)
 
-    def test_the_owner_may_grant_every_offered_role(self):
-        for role in (PlaylistRole.COLLABORATOR, PlaylistRole.STUDENT):
+    def test_the_owner_may_grant_each_role_through_its_assignment_endpoint(self):
+        for url, role in (
+            (self.collaborator_add_url(), PlaylistRole.COLLABORATOR),
+            (self.add_url(), PlaylistRole.STUDENT),
+        ):
             with self.subTest(role=role):
                 newcomer = UserFactory(student=True)
-                response = self.client.post(
-                    self.add_url(), {"user_id": newcomer.pk, "role": role.value}
-                )
-                self.assertEqual(response.status_code, 200, response.content[:200])
+                response = self.client.post(url, {"user_id": newcomer.pk})
+                self.assertEqual(response.status_code, 204, response.content[:200])
+                self.assertEqual(response.content, b"")
                 self.assertEqual(self.role_of(newcomer), role)
+
+    def test_the_owner_sees_individuals_and_collaborators_in_their_own_lists(self):
+        response = self.client.get(reverse("playlist_info", args=[self.playlist.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [access.user for access in response.context["individual_accesses"]],
+            [self.student],
+        )
+        self.assertEqual(
+            [access.user for access in response.context["collaborator_accesses"]],
+            [self.collaborator],
+        )
 
     def test_the_owner_may_promote_a_student_to_collaborator(self):
         response = self.client.post(
-            self.role_url(self.student), {"role": PlaylistRole.COLLABORATOR.value}
+            self.collaborator_add_url(), {"user_id": self.student.pk}
         )
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)
         self.assertEqual(self.role_of(self.student), PlaylistRole.COLLABORATOR)
 
-    def test_the_owner_may_demote_a_collaborator(self):
-        response = self.client.post(
-            self.role_url(self.collaborator), {"role": PlaylistRole.STUDENT.value}
+    def test_the_owner_may_reassign_a_collaborator_as_a_student(self):
+        removal = self.client.post(self.remove_url(self.collaborator))
+        self.assertEqual(removal.status_code, 204)
+        self.assertFalse(
+            PlaylistUserAccess.objects.filter(
+                playlist=self.playlist, user=self.collaborator
+            ).exists()
         )
-        self.assertEqual(response.status_code, 200)
+
+        response = self.client.post(self.add_url(), {"user_id": self.collaborator.pk})
+
+        self.assertEqual(response.status_code, 204)
         self.assertEqual(self.role_of(self.collaborator), PlaylistRole.STUDENT)
 
     def test_the_owner_may_remove_a_collaborator(self):
         response = self.client.post(self.remove_url(self.collaborator))
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)
         self.assertFalse(
             PlaylistUserAccess.objects.filter(
                 user=self.collaborator, playlist=self.playlist
@@ -136,34 +192,34 @@ class OwnerManagesEveryoneTests(PlaylistMemberTestCase):
             playlist=self.playlist,
             playlist_role=PlaylistRole.COLLABORATOR,
         )
-        response = self.client.get(
-            reverse("render_playlist_members", args=[self.playlist.pk])
-        )
-        listed = [member["user"].pk for member in response.context["members"]]
+        response = self.client.get(reverse("playlist_info", args=[self.playlist.pk]))
+        listed = [
+            access.user_id
+            for access in response.context["individual_accesses"]
+            + response.context["collaborator_accesses"]
+        ]
         self.assertNotIn(self.owner.pk, listed)
 
-    def test_the_owners_own_access_row_cannot_be_edited_as_a_membership(self):
+    def test_the_owners_own_access_row_cannot_be_removed_as_a_membership(self):
         PlaylistUserAccessFactory(
             user=self.owner,
             playlist=self.playlist,
             playlist_role=PlaylistRole.COLLABORATOR,
         )
-        response = self.client.post(
-            self.role_url(self.owner), {"role": PlaylistRole.STUDENT.value}
-        )
+        response = self.client.post(self.remove_url(self.owner))
         self.assertEqual(response.status_code, 404)
         self.assertEqual(self.role_of(self.owner), PlaylistRole.COLLABORATOR)
 
-    def test_a_role_outside_the_offered_set_is_refused(self):
-        response = self.client.post(
-            self.add_url(), {"user_id": self.outsider.pk, "role": 3}
-        )
-        self.assertEqual(response.status_code, 400)
-        self.assertFalse(
-            PlaylistUserAccess.objects.filter(
-                user=self.outsider, playlist=self.playlist
-            ).exists()
-        )
+    def test_the_individual_endpoint_always_assigns_the_student_role(self):
+        for role in (3, PlaylistRole.COLLABORATOR.value):
+            with self.subTest(role=role):
+                newcomer = UserFactory(student=True)
+                response = self.client.post(
+                    self.add_url(), {"user_id": newcomer.pk, "role": role}
+                )
+
+                self.assertEqual(response.status_code, 204)
+                self.assertEqual(self.role_of(newcomer), PlaylistRole.STUDENT)
 
 
 class CollaboratorIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
@@ -184,36 +240,21 @@ class CollaboratorIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
             self.add_url(),
             {"user_id": self.outsider.pk, "role": PlaylistRole.STUDENT.value},
         )
-        self.assertEqual(response.status_code, 200, response.content[:200])
+        self.assertEqual(response.status_code, 204, response.content[:200])
         self.assertEqual(self.role_of(self.outsider), PlaylistRole.STUDENT)
 
     def test_a_collaborator_may_remove_a_student(self):
         response = self.client.post(self.remove_url(self.student))
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)
         self.assertFalse(
             PlaylistUserAccess.objects.filter(
                 user=self.student, playlist=self.playlist
             ).exists()
         )
 
-    def test_a_refusal_says_why_in_a_body_the_panel_may_show(self):
-        """text/plain is how the client tells our message from a Django error page.
-
-        Sent as text/html it would be indistinguishable from a 500's error document, and
-        the panel would replace it with a generic failure rather than the reason.
-        """
-        response = self.client.post(
-            self.add_url(),
-            {"user_id": self.outsider.pk, "role": PlaylistRole.COLLABORATOR.value},
-        )
-        self.assertEqual(response.status_code, 403)
-        self.assertTrue(response["Content-Type"].startswith("text/plain"))
-        self.assertIn(b"Only the playlist owner", response.content)
-
     def test_a_collaborator_may_not_grant_the_collaborator_role(self):
         response = self.client.post(
-            self.add_url(),
-            {"user_id": self.outsider.pk, "role": PlaylistRole.COLLABORATOR.value},
+            self.collaborator_add_url(), {"user_id": self.outsider.pk}
         )
         self.assertEqual(response.status_code, 403)
         self.assertFalse(
@@ -224,17 +265,22 @@ class CollaboratorIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
 
     def test_a_collaborator_may_not_promote_a_student(self):
         response = self.client.post(
-            self.role_url(self.student), {"role": PlaylistRole.COLLABORATOR.value}
+            self.collaborator_add_url(), {"user_id": self.student.pk}
         )
         self.assertEqual(response.status_code, 403)
         self.assertEqual(self.role_of(self.student), PlaylistRole.STUDENT)
 
     def test_a_collaborator_may_not_demote_another_collaborator(self):
-        """The check that needs both ends: the target role here is one a collaborator may grant."""
+        """The student-assignment endpoint cannot overwrite an existing collaborator."""
         response = self.client.post(
-            self.role_url(self.other_collaborator), {"role": PlaylistRole.STUDENT.value}
+            self.add_url(), {"user_id": self.other_collaborator.pk}
         )
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 400)
+        self.assertFormError(
+            response.context["assign_individual_form"],
+            "user_id",
+            "This person already has a role on this playlist.",
+        )
         self.assertEqual(
             self.role_of(self.other_collaborator), PlaylistRole.COLLABORATOR
         )
@@ -248,34 +294,21 @@ class CollaboratorIsHeldToReadOnlyGrantsTests(PlaylistMemberTestCase):
             ).exists()
         )
 
-    def test_the_panel_offers_a_collaborator_only_the_student_role(self):
-        response = self.client.get(
-            reverse("render_playlist_members", args=[self.playlist.pk])
+    def test_a_collaborator_cannot_search_for_collaborator_assignments(self):
+        response = self.client.post(
+            reverse("playlist_collaborator_search", args=[self.playlist.pk]),
+            {"search": self.outsider.username},
         )
-        self.assertEqual(response.status_code, 200)
-        roles = response.context["grantable_roles"]
-        self.assertEqual([role["value"] for role in roles], [PlaylistRole.STUDENT])
-
-    def test_the_panel_leaves_rows_a_collaborator_may_not_touch_uneditable(self):
-        response = self.client.get(
-            reverse("render_playlist_members", args=[self.playlist.pk])
-        )
-        manageable = {
-            member["user"].pk: member["may_manage"]
-            for member in response.context["members"]
-        }
-        self.assertTrue(manageable[self.student.pk])
-        self.assertFalse(manageable[self.collaborator.pk])
-        self.assertFalse(manageable[self.other_collaborator.pk])
+        self.assertEqual(response.status_code, 403)
 
 
 class OutsidersAreRefusedTests(PlaylistMemberTestCase):
-    def test_a_student_member_cannot_reach_the_panel(self):
+    def test_a_student_member_does_not_see_who_else_has_access(self):
         login(self.client, self.student)
-        response = self.client.get(
-            reverse("render_playlist_members", args=[self.playlist.pk])
-        )
-        self.assertEqual(response.status_code, 403)
+        response = self.client.get(reverse("playlist_info", args=[self.playlist.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("individual_accesses", response.context)
+        self.assertNotContains(response, self.collaborator.get_full_name())
 
     def test_a_stranger_cannot_add_anyone(self):
         login(self.client, self.outsider)
@@ -327,33 +360,25 @@ class MemberSearchTests(PlaylistMemberTestCase):
     def test_an_empty_query_matches_no_one(self):
         self.assertEqual(len(self.search("")), 0)
 
-    def test_a_single_character_matches_no_one(self):
-        """Substring matching over every user makes one character a directory to scrape."""
-        UserFactory(student=True, last_name="Winterbourne")
-        self.assertEqual(len(self.search("w")), 0)
+    def test_a_single_character_finds_matches_for_both_assignment_searches(self):
+        target = UserFactory(student=True, last_name="Winterbourne")
+        for url_name in ("playlist_member_search", "playlist_collaborator_search"):
+            with self.subTest(url_name=url_name):
+                response = self.client.post(
+                    reverse(url_name, args=[self.playlist.pk]), {"search": "w"}
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(target, response.context["users"])
 
     def test_two_characters_is_enough_to_search(self):
         target = UserFactory(student=True, last_name="Winterbourne")
         self.assertIn(target, self.search("wi"))
 
-    def test_a_too_short_query_says_so_rather_than_reporting_no_matches(self):
-        """ "No matches" would read as "this person has no account" and send the person
-        to the directory lookup for someone who is already here."""
-        response = self.client.post(
-            reverse("playlist_member_search", args=[self.playlist.pk]),
-            {"search": "w"},
-        )
-        self.assertTrue(response.context["query_too_short"])
-        self.assertIn(b"Keep typing", response.content)
+    def test_a_whitespace_only_query_matches_no_one(self):
+        self.assertEqual(len(self.search("   ")), 0)
 
 
-class AddingByIdentifierTests(PlaylistMemberTestCase):
-    """The branch that reaches BYU's directory, and everything guarding it.
-
-    `Api` and `create_user` are stubbed throughout: what is under test is which inputs get
-    that far, not what BYU answers. MANUAL_TESTING.md §8 covers the real lookup.
-    """
-
+class AddingSelectedPersonTests(PlaylistMemberTestCase):
     def setUp(self):
         super().setUp()
         login(self.client, self.owner)
@@ -363,140 +388,32 @@ class AddingByIdentifierTests(PlaylistMemberTestCase):
             self.add_url(), {"role": PlaylistRole.STUDENT.value, **payload}
         )
 
-    def test_a_malformed_identifier_is_refused_before_any_api_call(self):
-        with (
-            patch("core.forms.Api") as api,
-            patch(
-                "yvideo.odhOIDCAuthenticationBackend.OIDCUserAuth.create_user"
-            ) as create_user,
-        ):
-            response = self.add(identifier="zzz!!")
-
-        self.assertEqual(response.status_code, 400)
-        self.assertIn(b"BYU ID", response.content)
-        api.assert_not_called()
-        create_user.assert_not_called()
-
-    def test_neither_a_pick_nor_a_typed_identifier_asks_for_one(self):
+    def test_a_missing_selection_asks_for_a_person(self):
+        initial_count = self.playlist.playlistuseraccess_set.count()
         with patch("core.forms.Api") as api:
             response = self.add()
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn(b"Search for a person", response.content)
+        self.assertFormError(
+            response.context["assign_individual_form"],
+            "user_id",
+            "Select a person from the search results.",
+        )
+        self.assertEqual(self.playlist.playlistuseraccess_set.count(), initial_count)
         api.assert_not_called()
-
-    def test_a_netid_that_already_has_an_account_skips_the_directory(self):
-        newcomer = UserFactory(student=True, netid="hasacct")
-
-        with patch("core.forms.Api") as api:
-            response = self.add(identifier="hasacct")
-
-        self.assertEqual(response.status_code, 200, response.content[:200])
-        self.assertEqual(self.role_of(newcomer), PlaylistRole.STUDENT)
-        api.assert_not_called()
-
-    def test_a_netid_lookup_that_finds_nobody_explains_rather_than_erroring(self):
-        with patch("core.forms.Api") as api:
-            api.return_value.get_student_summary.return_value = None
-            response = self.add(identifier="nosuchid")
-
-        self.assertEqual(response.status_code, 400)
-        self.assertIn(b"No BYU student record", response.content)
-
-    def test_an_unreachable_directory_is_reported_as_worth_retrying(self):
-        with patch("core.forms.Api") as api:
-            api.return_value.get_student_summary.side_effect = OSError(
-                "connection reset"
-            )
-            response = self.add(identifier="nosuchid")
-
-        self.assertEqual(response.status_code, 400)
-        self.assertIn(b"Try again", response.content)
-
-    def test_a_missing_api_setting_is_not_reported_as_worth_retrying(self):
-        """The API_NET_ID_IAM_URL case: retrying a misconfiguration never succeeds.
-
-        secret_settings.py is gitignored, so an install whose copy predates a key added to
-        secret_settings_template.py fails exactly this way, and "try again in a moment"
-        sends the person into a loop with no exit.
-        """
-        with patch("core.forms.Api") as api:
-            api.side_effect = AttributeError(
-                "module 'yvideo.secret_settings' has no attribute 'API_NET_ID_IAM_URL'"
-            )
-            response = self.add(identifier="nosuchid")
-
-        self.assertEqual(response.status_code, 400)
-        self.assertIn(b"configuration", response.content)
-        self.assertNotIn(b"Try again", response.content)
 
     def test_a_user_id_naming_a_deleted_account_is_refused(self):
         doomed = UserFactory(student=True)
         doomed_pk = doomed.pk
         doomed.delete()
 
+        initial_count = self.playlist.playlistuseraccess_set.count()
         response = self.add(user_id=doomed_pk)
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn(b"no longer has an account", response.content)
-
-    def test_a_collaborator_cannot_use_the_lookup_to_provision_a_collaborator(self):
-        """The role check runs first, so a refused grant never reaches BYU's directory."""
-        login(self.client, self.collaborator)
-
-        with patch("core.forms.Api") as api:
-            response = self.client.post(
-                self.add_url(),
-                {"identifier": "nosuchid", "role": PlaylistRole.COLLABORATOR.value},
-            )
-
-        self.assertEqual(response.status_code, 403)
-        api.assert_not_called()
-
-    def test_an_enrollment_warning_reaches_the_client(self):
-        """It rides a header so the body stays the roster fragment the client swaps in."""
-        newcomer = UserFactory(student=True, netid="warnme")
-
-        def resolve(self_, identifier):
-            self_.enrollment_warning = "Some courses may be missing."
-            return newcomer, True
-
-        with patch("core.forms.AddUserLookupForm._resolve_netid", resolve):
-            response = self.add(identifier="warnme")
-
-        self.assertEqual(response.status_code, 200, response.content[:200])
-        self.assertEqual(response["X-Member-Warning"], "Some courses may be missing.")
-
-
-class CourseAccessSummaryTests(PlaylistMemberTestCase):
-    """The summary answers "who can actually see this", so it has to match
-    can_be_viewed_by rather than count enrollments some looser way."""
-
-    def setUp(self):
-        super().setUp()
-        login(self.client, self.owner)
-
-    def summary(self):
-        response = self.client.get(
-            reverse("render_playlist_members", args=[self.playlist.pk])
+        self.assertFormError(
+            response.context["assign_individual_form"],
+            "user_id",
+            "Select a valid person from the search results.",
         )
-        return response.context["course_access"]
-
-    def test_an_unassigned_playlist_reports_no_courses(self):
-        self.assertEqual(self.summary(), [])
-
-    def test_enrolled_students_are_counted_once_per_course(self):
-        course = CourseFactory()
-        self.playlist.courses.add(course)
-        for _ in range(3):
-            UserCourseFactory(course=course)
-
-        summary = self.summary()
-        self.assertEqual(len(summary), 1)
-        self.assertEqual(summary[0]["name"], f"{course.dept} {course.catalog_number}")
-        self.assertEqual(summary[0]["student_count"], 3)
-
-    def test_a_course_from_an_inactive_term_is_not_listed(self):
-        self.playlist.courses.add(CourseFactory(yearterm="19951"))
-
-        self.assertEqual(self.summary(), [])
+        self.assertEqual(self.playlist.playlistuseraccess_set.count(), initial_count)

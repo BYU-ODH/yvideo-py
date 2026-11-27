@@ -1,0 +1,29 @@
+{% load static %}
+
+<div id="{{ membership_list_id|default:'assigned-individuals-list' }}"
+     data-playlist-membership-list>
+    {% if individual_accesses %}
+        <div class="playlist-assignment-category-header">
+            <p>Name</p>
+        </div>
+    {% endif %}
+    {% for access in individual_accesses %}
+        <div class="assigned-individual row-flex flex-apart-aligned">
+            <p class="playlist-assignment-item-lead-p">{{ access.user.netid|default:access.user.username }} - {{ access.user.get_full_name|default:access.user.username }}</p>
+            <div class="assigned-course-buttons">
+                <button type="button"
+                        class="assigned-individual-delete assigned-playlist-button"
+                        aria-label="Remove {{ access.user.get_full_name|default:access.user.username }} from playlist access"
+                        data-remove-url="{% url 'remove_playlist_member' playlist.id access.user_id %}"
+                        data-individual-name="{{ access.user.get_full_name|default:access.user.username }}"
+                        command="show-modal"
+                        commandfor="delete-assigned-individual-modal"
+                        {% if not can_remove %}disabled{% endif %}>
+                    <img src="{% static 'img/trash-red.svg' %}" alt="">
+                </button>
+            </div>
+        </div>
+    {% empty %}
+        <p>{{ empty_message|default:"No individuals assigned." }}</p>
+    {% endfor %}
+</div>

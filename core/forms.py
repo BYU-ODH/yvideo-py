@@ -3,14 +3,17 @@ import re
 
 from django import forms
 from django.core.exceptions import ValidationError
+from django.db import transaction
 import requests
 
 from .api import Api
 from .model_utils import update_user_enrollment
 from .models import Clip
 from .models import Content
+from .models import Course
 from .models import Language
 from .models import Playlist
+from .models import PlaylistUserAccess
 from .models import ResourceIntakeRequest
 from .models import Subtitle
 from .models import User
@@ -76,7 +79,109 @@ class PlaylistSettingsForm(forms.ModelForm):
     class Meta:
         model = Playlist
         # is_ic is shown to, and applied for, IC editors only.
-        fields = ["name", "published", "archived", "is_ic"]
+        fields = ["published", "archived", "is_ic"]
+
+
+class _UppercaseCharField(forms.CharField):
+    def to_python(self, value):
+        return super().to_python(value).upper()
+
+
+class AssignCoursesForm(forms.Form):
+    yearterm = forms.RegexField(
+        regex=r"^[0-9]{4}[1345]$",
+        widget=forms.HiddenInput,
+        error_messages={"invalid": "Select a valid semester."},
+    )
+    dept = Course._meta.get_field("dept").formfield(
+        form_class=_UppercaseCharField,
+        label="Department",
+        widget=forms.TextInput(attrs={"autofocus": True}),
+        validators=Course._meta.get_field("dept").validators,
+    )
+    catalog_number = Course._meta.get_field("catalog_number").formfield(
+        form_class=_UppercaseCharField,
+        validators=Course._meta.get_field("catalog_number").validators,
+    )
+    sections = forms.CharField(
+        label="Sections",
+        help_text="Enter section numbers separated by commas, e.g. 001, 002, 003.",
+    )
+
+    def clean_sections(self):
+        section_field = Course._meta.get_field("section_number")
+        sections = []
+        for value in self.cleaned_data["sections"].split(","):
+            section = value.strip()
+            if not section:
+                continue
+            if not re.fullmatch(r"[0-9]{1,3}", section):
+                raise ValidationError(
+                    "Enter section numbers of 1 to 3 digits, separated by commas."
+                )
+            section = section_field.clean(section.zfill(3), None)
+            if section not in sections:
+                sections.append(section)
+        if not sections:
+            raise ValidationError("Enter at least one section number.")
+        return sections
+
+    @transaction.atomic
+    def save(self, *, playlist):
+        """Add one course per section without removing existing assignments."""
+        if not self.is_valid():
+            raise ValueError("Cannot save an invalid course assignment form.")
+        courses = []
+        for section in self.cleaned_data["sections"]:
+            course, _ = Course.objects.get_or_create(
+                dept=self.cleaned_data["dept"],
+                catalog_number=self.cleaned_data["catalog_number"],
+                section_number=section,
+                yearterm=self.cleaned_data["yearterm"],
+            )
+            courses.append(course)
+        playlist.courses.add(*courses)
+        return courses
+
+
+class AssignIndividualForm(forms.Form):
+    search = forms.CharField(
+        label="Name or netid",
+        required=False,
+        widget=forms.TextInput(attrs={"type": "search", "autocomplete": "off"}),
+    )
+    user_id = forms.ModelChoiceField(
+        label="Person",
+        queryset=User.objects.all(),
+        widget=forms.HiddenInput,
+        error_messages={
+            "required": "Select a person from the search results.",
+            "invalid_choice": "Select a valid person from the search results.",
+        },
+    )
+
+    def __init__(self, *args, playlist, allow_reassignment=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.playlist = playlist
+        self.allow_reassignment = allow_reassignment
+
+    def clean_user_id(self):
+        user = self.cleaned_data["user_id"]
+        if user.pk == self.playlist.owner_id:
+            raise ValidationError("This person already owns the playlist.")
+        if (
+            not self.allow_reassignment
+            and PlaylistUserAccess.objects.filter(
+                user=user, playlist=self.playlist
+            ).exists()
+        ):
+            raise ValidationError("This person already has a role on this playlist.")
+        return user
+
+
+class EditAssignedCoursesForm(AssignCoursesForm):
+    original_dept = forms.CharField(max_length=5, widget=forms.HiddenInput)
+    original_catalog_number = forms.CharField(max_length=4, widget=forms.HiddenInput)
 
 
 class UpdateContentForm(forms.ModelForm):

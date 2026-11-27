@@ -26,14 +26,14 @@ urlpatterns = [
         name="delete_playlist",
     ),
     path(
-        "playlists/<int:playlist_id>/render-course-assignment/",
-        views.render_course_assignment,
-        name="render_course_assignment",
-    ),
-    path(
         "playlists/<int:playlist_id>/assign-course/",
         views.assign_playlist_to_course,
         name="assign_playlist_to_course",
+    ),
+    path(
+        "playlists/<int:playlist_id>/course/edit-form/",
+        views.prepare_playlist_course_edit_form,
+        name="edit_playlist_courses_form",
     ),
     path(
         "playlists/<int:playlist_id>/course/update-sections/",
@@ -46,19 +46,14 @@ urlpatterns = [
         name="unassign_playlist_from_course",
     ),
     path(
-        "playlists/<int:playlist_id>/settings/",
-        views.display_playlist_settings,
-        name="display_playlist_settings",
-    ),
-    path(
         "playlists/<int:playlist_id>/settings/update/",
         views.update_playlist_settings,
         name="update_playlist_settings",
     ),
     path(
-        "playlists/<int:playlist_id>/members/",
-        views.render_playlist_members,
-        name="render_playlist_members",
+        "playlists/<int:playlist_id>/change-name/",
+        views.update_playlist_name,
+        name="update_playlist_name",
     ),
     path(
         "playlists/<int:playlist_id>/members/search/",
@@ -71,9 +66,14 @@ urlpatterns = [
         name="add_playlist_member",
     ),
     path(
-        "playlists/<int:playlist_id>/members/<int:user_id>/role/",
-        views.update_playlist_member_role,
-        name="update_playlist_member_role",
+        "playlists/<int:playlist_id>/collaborators/search/",
+        views.playlist_collaborator_search,
+        name="playlist_collaborator_search",
+    ),
+    path(
+        "playlists/<int:playlist_id>/collaborators/add/",
+        views.add_playlist_collaborator,
+        name="add_playlist_collaborator",
     ),
     path(
         "playlists/<int:playlist_id>/members/<int:user_id>/remove/",

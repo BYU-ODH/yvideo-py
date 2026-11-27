@@ -22,7 +22,7 @@
     --dark-primary-blue: #2e677c;
     --side-bar-width: 15rem;
     --box-shadow-color: #00000075;
-    --basic-border-radius: 8px;
+    --basic-border-radius: 12px;
 }
 
 * {
@@ -48,7 +48,6 @@ body {
 }
 
 dialog {
-    position: relative;
     border-radius: 20px;
 }
 
@@ -82,6 +81,26 @@ button:hover {
     padding: 0.5rem;
 
     box-shadow: 3px 3px 3px var(--box-shadow-color);
+}
+
+.text-edit-icon-button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    width: 2rem;
+    height: 2rem;
+    padding: 1rem;
+    border: none;
+    border: 2px solid white;
+    border-radius: 8px;
+
+    background-color: white;
+}
+
+.text-edit-icon-button:hover {
+    border: 2px solid black;
 }
 
 .action-link {
@@ -129,6 +148,8 @@ button:hover {
 }
 
 .blue-button, .white-button-with-border, .red-button, .cancel-button {
+    cursor: pointer;
+
     margin: 2px;
     padding: 10px 20px;
     border: 2px solid white;
@@ -1034,8 +1055,32 @@ button:hover {
 }
 
 /* PLAYLIST PAGE */
+.playlist-form-group {
+    display: flex;
+    flex-direction: row;
+    column-gap: 0.5rem;
+    align-items: center;
+}
+
+.playlist-setting-checkbox-button:has(input:disabled) {
+    border-color: grey;
+    box-shadow: none;
+}
+
+.playlist-setting-input[type="checkbox"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
+.playlist-setting-checkbox-button:has(.playlist-setting-input:focus-visible) {
+    outline: var(--medium-blue) dashed;
+    box-shadow: none;
+}
+
 #add-new-playlist-button {
-    align-self: flex-end;
+    align-self: flex-start;
 }
 
 .playlists-list-content {
@@ -1173,213 +1218,171 @@ button:hover {
     transform: rotate(180deg);
 }
 
-#playlist-settings, #content-settings {
+#content-settings {
+    display: flex;
+    flex-direction: column;
+
     padding: 1rem;
     border: 1px solid #00000025;
     border-radius: 1rem;
 }
 
-#playlist-settings {
+#playlist-name-wrapper {
     display: flex;
     flex-direction: row;
-    justify-content: space-between;
-}
-
-#content-settings {
-    display: flex;
-    flex-direction: column;
-}
-
-#playlist-settings form, #content-settings form {
-    align-items: flex-start;
-}
-
-/* playlist course assignment form */
-#assign-course-wrapper h4 {
-    margin: 0;
-    margin-top: 1rem;
-}
-
-.assigned-course {
-    display: grid;
-    grid-template-columns: 6rem 1fr;
+    column-gap: 1rem;
     align-items: center;
 }
 
-.assigned-course p {
+#content-settings form {
+    align-items: flex-start;
+}
+
+/* playlist course assignment and collaborator panels */
+.playlist-editing-modal {
+    max-width: 40rem;
+}
+
+.playlist-field-wrapper ul {
     margin: 0;
 }
 
-.remove-course-assignment-button {
+#assign-courses-fields-list,
+#edit-courses-fields-list {
+    margin-bottom: 1rem;
+}
+
+#assigned-courses {
+    margin-top: 1rem;
+}
+
+#assigned-courses, #assigned-courses-list, #assigned-individuals, #assigned-individuals-list, #assigned-collaborators, #assigned-collaborators-list {
     display: flex;
     flex-direction: column;
-    align-self: center;
+    row-gap: 0.75rem;
+}
+
+.playlist-assignment-category-header, .playlist-assignment-item-lead-p {
+    margin-left: 10px;
+}
+
+.playlist-assignment-category-header p {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.semester-course, .assigned-individual, .assigned-collaborator {
+    padding-top: 5px;
+    padding-bottom: 5px;
+    border-radius: 8px;
+    background-color: var(--selectable-grey);
+}
+
+.assigned-individual p, .assigned-collaborator p {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.pnc-section-header {
+    margin-top: 0;
+    margin-bottom: 0;
+    font-weight: bold;
+}
+
+#pnc-courses-header, .semester-course {
+    display: flex;
+    flex-direction: row;
+}
+
+.course-title, .course-sections {
+    margin-top: auto;
+    margin-bottom: auto;
+}
+
+.course-title {
+    width: 7rem;
+}
+
+.course-sections {
+    flex: 1;
+}
+
+.assigned-course-buttons {
+    display: flex;
+    flex-direction: row;
+    column-gap: 1rem;
+    align-items: center;
+    align-self: flex-start;
+
+    margin-right: 10px;
+}
+
+.assigned-playlist-button {
+    cursor: pointer;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
 
-    margin-right: 1rem;
-    margin-left: auto;
-    padding: 0.45rem 0.5rem;
-    border: none;
-    border-radius: 50%;
+    width: 1.8rem;
+    height: 1.8rem;
+    margin: 0;
+    padding: 0;
+    padding: 0.2rem;
+    border: 2px solid transparent;
+    border-radius: 8px;
 
     background-color: inherit;
 }
 
-.remove-course-assignment-button:hover {
-    background-color: var(--selectable-grey);
-    box-shadow: 2px 3px 6px var(--box-shadow-color);
+.assigned-playlist-button:hover {
+    border: 2px solid black;
 }
 
-.new-course-assignment-detail {
-    display: flex;
-    flex-direction: column;
-    row-gap: 0.25rem;
+.assigned-playlist-button img {
+    width: 100%;
+    height: 100%;
 }
 
-.new-course-assignment-detail input[type='text'] {
-    width: 6rem;
+.assigned-playlist-button:disabled {
+    cursor: not-allowed;
 }
 
-.course-item, #update-sections-button {
-    margin-top: 0.5rem;
+.playlist-assignment-button {
+    align-self: center;
 }
 
-/* playlist Manage People panel */
-.playlist-members-body {
-    /* A <dialog> is width: fit-content, so without this the panel resizes to whatever
-       the status line currently says -- a long lookup error stretches it, and the next
-       short message snaps it back. */
-    width: min(42rem, 85vw);
+dialog .assignment-search-input:focus {
+    outline: none;
 }
 
-.playlist-members-section {
+dialog .assignment-search-input {
+    width: 100%;
+    border: none;
+    border-bottom: 2px solid var(--medium-blue);
+    border-radius: 0;
+}
+
+.assignment-search-results {
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     row-gap: 0.5rem;
 
-    padding: 1.25rem 0;
-    border-top: 1px solid var(--selectable-grey);
-}
-
-/* The roster opens the panel, so it has the header above it rather than a rule. */
-.playlist-members-section:first-child {
-    padding-top: 0;
+    max-height: 8rem;
+    border: 2px solid var(--medium-blue);
     border-top: none;
 }
 
-.playlist-members-section h4 {
-    margin: 0;
-    color: var(--deep-blue);
-}
-
-/* Matches the resource-intake messages, which are this app's established way of saying
-   an action did or did not work. */
-.playlist-members-status {
-    margin: 0.25rem 0;
-    padding: 12px 16px;
-    border-radius: 6px;
-    font-weight: 500;
-}
-
-/* Collapsed rather than hidden: `hidden`/`display: none` would drop it out of the
-   accessibility tree, and a live region that is not in the tree cannot announce. An empty
-   block with no box takes up no room while staying available to announce into. */
-.playlist-members-status:empty {
-    margin: 0;
-    padding: 0;
+.assignment-search-result {
     border: none;
+    background-color: white;
 }
 
-.playlist-members-status-success {
-    border: 1px solid var(--green);
-    color: var(--green);
-    background-color: var(--pale-green);
-}
-
-.playlist-members-status-error {
-    border: 1px solid var(--red);
-    color: var(--dark-red);
-    background-color: var(--pale-red);
-}
-
-.playlist-member-rows, .playlist-member-course-rows, .playlist-member-role-legend {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-.playlist-member-course-rows, .playlist-member-role-legend {
-    display: flex;
-    flex-direction: column;
-    row-gap: 0.25rem;
-}
-
-.playlist-member-row {
-    display: grid;
-
-    /* Packed left rather than 1fr for the name, so a wide dialog does not strand the
-       NetID and the role picker at opposite ends of the row. */
-    grid-template-columns: minmax(8rem, 16rem) 7rem 10rem 2.5rem;
-    column-gap: 0.5rem;
-    align-items: center;
-    justify-content: start;
-
-    padding: 0.25rem 0;
-}
-
-.playlist-member-fixed-role {
-    /* Sits in the role-picker column so a row a TA may not change still lines up with
-       one they may. */
-    grid-column: 3 / span 2;
-}
-
-.playlist-member-remove-button {
-    display: flex;
-    align-self: center;
-    justify-content: center;
-
-    padding: 0.45rem 0.5rem;
-    border: none;
-    border-radius: 50%;
-
-    background-color: inherit;
-}
-
-.playlist-member-remove-button:hover {
+.assignment-search-result:hover {
+    cursor: pointer;
     background-color: var(--selectable-grey);
-    box-shadow: 2px 3px 6px var(--box-shadow-color);
-}
-
-.playlist-member-search, .playlist-member-results {
-    width: 100%;
-}
-
-.playlist-member-add-controls {
-    column-gap: 0.5rem;
-    align-items: flex-end;
-}
-
-.assigned-course input[type='text'] {
-    height: 2rem;
-}
-
-#assigned-course-items {
-    overflow-y: auto;
-    max-height: 12rem;
-}
-
-.assigned-course-edit-sections, .assigned-course-delete {
-    display: flex;
-
-    width: 1rem;
-    height: 1rem;
-    border: none;
-
-    background-color: inherit;
-}
-
-.section-save-button {
-    height: 2rem;
 }
 
 .content-item {
@@ -1440,6 +1443,18 @@ button:hover {
     padding: 0 2rem;
 }
 
+#playlist-lower-content {
+    column-gap: 2rem;
+}
+
+#playlist-lower-content h2 {
+    margin: 0;
+}
+
+#playlist-videos-content {
+    flex: 1;
+}
+
 #no-playlists-body {
     overflow-y: auto;
     display: flex;
@@ -1455,6 +1470,31 @@ button:hover {
     color: rgb(204 204 204);
 
     background-color: white;
+}
+
+#playlist-publishing-and-collaborators-content {
+    align-self: flex-start;
+}
+
+.playlist-settings-card {
+    width: 25rem;
+    padding: 1rem;
+    border-radius: var(--basic-border-radius);
+    box-shadow: 0 0 5px 0 var(--box-shadow-color);
+}
+
+.playlist-settings-card-header {
+    display: flex;
+    flex-direction: row;
+    column-gap: 1rem;
+}
+
+.playlist-settings-card-header h3, .playlist-settings-card-header p {
+    margin: 0;
+}
+
+.playlist-settings-card-header h3 {
+    font-size: 1rem;
 }
 
 /* Create New Playlist Modal */
@@ -1776,17 +1816,9 @@ button:hover {
     margin-bottom: 0;
 }
 
-#assign-course-wrapper p {
-    margin: 0;
-}
-
 
 /* Video Page */
-#playlist-videos-header {
-    align-items: flex-end;
-}
-
-#playlist-video-list, #modal-resource-list {
+#modal-resource-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
     gap: 30px;
@@ -1804,27 +1836,119 @@ button:hover {
     max-width: min(90vw, 40rem);
 }
 
-.playlist-item-tile, .resource-details {
-    border-radius: 12px;
-    box-shadow:  2px 2px 5px var(--box-shadow-color);
-}
 
 .playlist-item-tile {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+
     padding: 1rem;
-    border: 1px solid var(--box-shadow-color);
+    border-radius: var(--basic-border-radius);
 
-    color: inherit;
-    text-decoration: none;
-
-    transition: all linear 0.2s;
-}
-
-.playlist-item-tile:hover {
-    box-shadow: -2px -2px 5px var(--box-shadow-color);
+    box-shadow: 0 0 5px var(--box-shadow-color);
 }
 
 .playlist-item-tile p {
     margin: 0;
+}
+
+#playlist-video-list .copy-video-link-button,
+#playlist-video-list .setting-toggle {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    align-self: center;
+    justify-content: center;
+
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+
+    font: inherit;
+    color: inherit;
+
+    background: transparent;
+}
+
+#playlist-video-list .copy-video-link-button {
+    width: 44px;
+    border: 2px solid transparent;
+    border-radius: 8px;
+}
+
+#playlist-video-list .copy-video-link-button:hover {
+    border-color: black;
+}
+
+#playlist-video-list .setting-toggle {
+    gap: 1rem;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+.setting-toggle-text {
+    width: 6rem;
+}
+
+#playlist-video-list .setting-toggle-track {
+    position: relative;
+
+    display: block;
+    flex-shrink: 0;
+
+    width: 4rem;
+    height: 2rem;
+    border-radius: 2rem;
+
+    background-color: var(--dark-grey);
+    box-shadow: 0 3px 6px rgb(0 0 0 / 16%), 0 3px 6px rgb(0 0 0 / 23%);
+}
+
+#playlist-video-list .setting-toggle:hover .setting-toggle-track {
+    box-shadow: 0 3px 6px rgb(0 0 0 / 16%), 0 3px 6px rgb(0 0 0 / 23%), 0 3px 5px 0 #00000050;
+}
+
+#playlist-video-list .setting-toggle:focus-visible .setting-toggle-track {
+    box-shadow: none;
+}
+
+#playlist-video-list .setting-toggle-peg {
+    position: absolute;
+    top: 0.125rem;
+    left: 0.125rem;
+    transform: translateX(0);
+
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+
+    background-color: white;
+
+    transition: transform 200ms ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #playlist-video-list .setting-toggle-peg {
+        transition: none;
+    }
+}
+
+#playlist-video-list .setting-toggle[aria-checked="true"] .setting-toggle-track {
+    background-color: var(--primary-blue);
+}
+
+#playlist-video-list .setting-toggle[aria-checked="true"] .setting-toggle-peg {
+    transform: translateX(2rem);
+}
+
+#playlist-video-list .setting-toggle[aria-busy="true"] {
+    cursor: progress;
+}
+
+#playlist-video-list .copy-video-link-button:focus-visible,
+#playlist-video-list .setting-toggle:focus-visible {
+    outline: 2px solid var(--medium-blue);
+    outline-offset: 3px;
 }
 
 .resource-detail-heading,
@@ -1843,12 +1967,14 @@ button:hover {
     width: 100%;
     padding: 1rem;
     border: 0;
+    border-radius: var(--basic-border-radius);
 
     font: inherit;
     color: inherit;
     text-align: left;
 
     background: white;
+    box-shadow: 2px 2px 5px var(--box-shadow-color);
 
     transition: 0.15s linear box-shadow;
 }
@@ -1927,7 +2053,6 @@ button:hover {
 }
 
 #content-details-header h3,
-#playlist-settings h3,
 #content-settings h3 {
     margin: 0;
 }
@@ -1960,6 +2085,11 @@ button:hover {
 
 .label-with-info {
     anchor-scope: --info-button;  /* eslint-disable-line css/use-baseline */
+
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+
     font-weight: 500;
 }
 
@@ -2083,14 +2213,38 @@ button:hover {
     }
 }
 
-button.disabled {
+button.disabled, .playlist-setting-checkbox-button:has(input:disabled) {
     cursor: not-allowed;
     color: #434343;
     background-color: #e0e0e040;
 }
 
-button.disabled:hover {
+button.disabled:hover, .playlist-setting-checkbox-button:has(input:disabled):hover {
     background-color: #e0e0e040;
+}
+
+.playlist-thumbnail-link {
+    display: block;
+    align-self: center;
+
+    border-radius: 8px;
+
+    text-decoration: none;
+
+    box-shadow: 0 3px 6px rgb(0 0 0 / 16%), 0 3px 6px rgb(0 0 0 / 23%);
+}
+
+.playlist-thumbnail-link:hover {
+    box-shadow: 0 3px 6px rgb(0 0 0 / 16%), 0 3px 6px rgb(0 0 0 / 23%), 0 3px 5px 0 #00000050;
+}
+
+.playlist-thumbnail-link:focus-visible {
+    outline: var(--medium-blue) dashed;
+    box-shadow: none;
+}
+
+.playlist-thumbnail-link .thumbnail {
+    height: 6rem;
 }
 
 .thumbnail {

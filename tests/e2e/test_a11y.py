@@ -400,7 +400,7 @@ def test_the_playlists_page_states_have_no_a11y_violations(
 def test_the_playlist_page_dialogs_have_no_a11y_violations(
     logged_in_page: Page, live_server, awkward_data
 ):
-    """The delete confirmation and the course-assignment editor."""
+    """The delete confirmation and the separate student/collaborator assignments."""
     page = logged_in_page
     page.goto(f"{live_server.url}/playlists/{awkward_data.playlist.id}/")
 
@@ -409,52 +409,62 @@ def test_the_playlist_page_dialogs_have_no_a11y_violations(
     assert_no_violations(page, "the delete-playlist dialog", include=["dialog[open]"])
     page.keyboard.press("Escape")
 
-    page.locator("#playlist-edit-course-assignment-button").click()
-    page.wait_for_selector("#assign-course-button", state="visible")
-    assert_no_violations(
-        page, "the course-assignments dialog", include=["dialog[open]"]
-    )
-    page.keyboard.press("Escape")
+    for assignment_kind in ("individual", "collaborator"):
+        dialog_id = f"add-assigned-{assignment_kind}-modal"
+        page.locator(f"[commandfor='{dialog_id}'][command='show-modal']").click()
+        dialog = page.locator(f"#{dialog_id}")
+        expect(dialog).to_be_visible()
+        assert_no_violations(
+            page, f"the assign-{assignment_kind} dialog", include=["dialog[open]"]
+        )
+
+        dialog.locator("input[name='search']").fill("prof")
+        expect(dialog.locator("[data-individual-user-id]").first).to_be_visible()
+        assert_no_violations(
+            page,
+            f"the assign-{assignment_kind} search results",
+            include=["dialog[open]"],
+        )
+        # A populated search input can consume Escape instead of closing the dialog.
+        dialog.get_by_role("button", name="Close", exact=True).click()
+        expect(dialog).to_be_hidden()
 
 
-def test_the_manage_people_dialog_has_no_a11y_violations(
+def test_the_playlist_course_dialogs_have_no_a11y_violations(
     logged_in_page: Page, live_server, awkward_data
 ):
-    """Manage People, its search results, and the remove confirmation.
+    from core.factories import CourseFactory
 
-    The results list is fetched, so the empty <select> the page ships with is not what a
-    screen reader meets in practice - the audit has to run against a populated one.
-
-    Ada's shelf rather than awkward_data.playlist because it is the seeded playlist with
-    members other than its owner, and the remove confirmation needs a row to open on.
-    The demo admin is a superuser, so every row is theirs to manage.
-    """
+    course = CourseFactory(yearterm="20265")
+    playlist = awkward_data.playlist
+    playlist.courses.add(course)
     page = logged_in_page
-    populated_playlist = Playlist.objects.get(name="Birds of a Feather")
-    page.goto(f"{live_server.url}/playlists/{populated_playlist.id}/")
+    page.goto(f"{live_server.url}/playlists/{playlist.pk}/?yearterm={course.yearterm}")
+    assert_no_violations(page, "the playlist with an assigned course")
 
-    page.locator("#playlist-manage-people-button").click()
-    page.wait_for_selector("#playlist-member-add-button", state="visible")
-    assert_no_violations(page, "the manage-people dialog", include=["dialog[open]"])
-
-    # "iv" matches seeded Ivy, who is on Ben's shelf rather than this one so the search
-    # can find her. Long enough to clear MEMBER_SEARCH_MINIMUM_LENGTH, and waiting for a
-    # *selectable* option rather than any option is what makes this a populated list --
-    # a too-short or unmatched query renders one disabled placeholder and hides the list,
-    # which axe would skip entirely.
-    page.locator("#playlist-member-search").fill("iv")
-    page.wait_for_selector(
-        "#playlist-member-results option:not([disabled])", state="visible"
-    )
-    assert_no_violations(
-        page, "the manage-people search results", include=["dialog[open]"]
-    )
-
-    page.locator(".playlist-member-remove-button").first.click()
-    page.wait_for_selector("#playlist-member-confirm-remove", state="visible")
-    assert_no_violations(
-        page, "the remove-member confirmation", include=["dialog[open]"]
-    )
+    for dialog_id, trigger, ready_selector in (
+        (
+            "add-assigned-course-modal",
+            "[commandfor='add-assigned-course-modal'][command='show-modal']",
+            "form[data-course-assignment-form]",
+        ),
+        (
+            "edit-assigned-course",
+            "#assigned-courses .edit-course-button",
+            "form[data-course-assignment-form]",
+        ),
+        (
+            "delete-assigned-course-modal",
+            "#assigned-courses .assigned-course-delete",
+            "#unassign-course-confirm:not([disabled])",
+        ),
+    ):
+        page.locator(trigger).first.click()
+        dialog = page.locator(f"#{dialog_id}")
+        expect(dialog.locator(ready_selector)).to_be_visible()
+        assert_no_violations(page, dialog_id, include=["dialog[open]"])
+        dialog.get_by_role("button", name="Close", exact=True).click()
+        expect(dialog).to_be_hidden()
 
 
 def test_the_add_video_modal_chain_has_no_a11y_violations(
@@ -1088,6 +1098,9 @@ def test_admin_page_has_no_a11y_violations(
 # list should be provided in the following format: "template path": "reason for exclusion"
 # e.g. "core/partials/unaudited.html": "Never seen in UI"
 UNAUDITED_TEMPLATES = {
+    "core/partials/modals/delete_assigned_individual.html": (
+        "the audited Demo Review Shelf has no direct assignments to open this dialog"
+    ),
     "core/partials/add_playlist_modal.html": (
         "unreferenced: playlists.html uses partials/modals/add_new_playlist.html instead"
     ),
@@ -1153,6 +1166,8 @@ AUDITED_TEMPLATES = {
     "core/partials/editable_thumbnail.html",
     "core/partials/thumbnail.html",
     "core/partials/playlist_settings.html",
+    "core/partials/individual_assignment_list.html",
+    "core/partials/course_assignment_list.html",
     "core/partials/resource_intake_request.html",
     "core/partials/legal_compliance_checkboxes.html",
     "core/resource_access_requests.html",
@@ -1161,23 +1176,25 @@ AUDITED_TEMPLATES = {
     "core/partials/user_message.html",
     # dialogs
     "core/partials/course_assignment.html",
+    "core/partials/assign_courses_to_playlist_form.html",
+    "core/partials/modals/add_assigned_courses.html",
+    "core/partials/modals/edit_assigned_course.html",
+    "core/partials/modals/delete_assigned_course.html",
     "core/partials/create_from_resource_form.html",
     "core/partials/modals/add_new_playlist.html",
     "core/partials/modals/add_video.html",
     "core/partials/modals/content_delete.html",
     "core/partials/modals/create_from_resource.html",
     "core/partials/modals/help_and_feedback.html",
-    "core/partials/modals/playlist_course_assignments.html",
     "core/partials/modals/playlist_delete.html",
-    "core/partials/modals/playlist_member_remove.html",
-    "core/partials/modals/playlist_members.html",
+    "core/partials/modals/add_assigned_individuals.html",
+    "core/partials/modals/add_assigned_collaborators.html",
+    "core/partials/assign_individual_to_playlist_form.html",
+    "core/partials/playlist_member_search_results.html",
     "core/partials/modals/create_subtitle_track.html",
     "core/partials/modals/delete_subtitle_track.html",
     "core/partials/modals/edit_subtitle_track.html",
     "core/partials/modals/select_subtitle_track.html",
-    "core/partials/playlist_member_options_for_select.html",
-    "core/partials/playlist_members_list.html",
-    "core/partials/playlist_members_roster.html",
     "core/partials/modals/select_resource.html",
     "core/partials/modals/tools_info.html",
     "core/partials/modals/thumbnail_editor.html",
