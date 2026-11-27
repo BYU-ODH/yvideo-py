@@ -2,7 +2,7 @@
     <button type="submit"
             class="assignment-search-result"
             data-individual-user-id="{{ user.id }}">
-        {{ user.get_full_name|default:user.username }} ({{ user.netid }})
+        {{ user.get_full_name|default:user.username }}{% if user.netid %} ({{ user.netid }}){% endif %}
     </button>
 {% empty %}
     <p class="muted-text">No results</p>
